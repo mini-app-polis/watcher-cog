@@ -1,3 +1,10 @@
+## [1.1.6](https://github.com/mini-app-polis/watcher-cog/compare/v1.1.5...v1.1.6) (2026-03-29)
+
+
+### Bug Fixes
+
+* updating uuids for deployments ([a0584da](https://github.com/mini-app-polis/watcher-cog/commit/a0584da212c3f36be315255651a03d06d8d88291))
+
 ## [1.1.5](https://github.com/mini-app-polis/watcher-cog/compare/v1.1.4...v1.1.5) (2026-03-28)
 
 
