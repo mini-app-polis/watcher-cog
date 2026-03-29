@@ -21,20 +21,20 @@ WATCHERS: list[WatcherConfig] = [
     WatcherConfig(
         name="dj-sets",
         folder_id="1t4d_8lMC3ZJfSyainbpwInoDta7n69hC",
-        deployment_id="d898461d-0d9f-40b0-aa2e-9a75bc266f94",
+        deployment_id="7334f113-3efc-43ec-8ada-2431b1ff1583",
         interval_min=1,
     ),
     WatcherConfig(
         name="live-history",
         folder_id="1HGxEr5ocY9JLtXcJqDRIOD95rXU6QLUW",
-        deployment_id="4bb81b41-0c9b-4c13-a0af-60d8646b2e2d",
+        deployment_id="ae8a1dcd-42cc-4cae-8c54-b67895e64cca",
         interval_min=1,
     ),
     # generate-summaries and update-dj-set-collection are triggered
     # manually or via Prefect schedules, not by Drive file drops
     # Add them here if you want Drive-triggered runs for those too
-    # Deployment 'update-dj-set-collection/update-dj-set-collection'
-    # id '88e08291-3ca4-417c-92e0-649cb93e2cc8'.
+    # Deployment 'update-dj-set-collection/update-deejay-set-collection'
+    # id 'cad08633-d2c8-4873-b2ab-d34714b042e9'.
     # Deployment 'generate-summaries/generate-summaries'
-    # id 'ad3808da-dc8a-4e4c-b633-ee71534a0c1e'.
+    # id 'b532f160-1731-43c9-a1f6-9c7eca474a92'.
 ]
