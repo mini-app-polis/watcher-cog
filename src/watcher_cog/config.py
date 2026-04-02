@@ -7,6 +7,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class WatcherConfig:
+    """Static mapping from one Drive folder to one Prefect deployment."""
+
     name: str
     folder_id: str
     deployment_id: str
