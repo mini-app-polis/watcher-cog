@@ -1,3 +1,12 @@
+## [1.1.7](https://github.com/mini-app-polis/watcher-cog/compare/v1.1.6...v1.1.7) (2026-04-02)
+
+
+### Bug Fixes
+
+* release ([b71c0fa](https://github.com/mini-app-polis/watcher-cog/commit/b71c0fa12568122fd5b3a4d9be305cf2d488d682))
+* release ([4ae80f1](https://github.com/mini-app-polis/watcher-cog/commit/4ae80f1e3999246368933fe234961fa557487803))
+* requirements ([0514240](https://github.com/mini-app-polis/watcher-cog/commit/0514240fb2b39823dc62666a4768007cbe9aaa49))
+
 ## [1.1.6](https://github.com/mini-app-polis/watcher-cog/compare/v1.1.5...v1.1.6) (2026-03-29)
 
 
