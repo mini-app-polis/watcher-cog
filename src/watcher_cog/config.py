@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 
@@ -19,10 +20,17 @@ class WatcherConfig:
     activity_threshold_min: int = 10
 
 
+def _require(name: str) -> str:
+    v = os.getenv(name, "").strip()
+    if not v:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return v
+
+
 WATCHERS: list[WatcherConfig] = [
     WatcherConfig(
         name="dj-sets",
-        folder_id="1t4d_8lMC3ZJfSyainbpwInoDta7n69hC",
+        folder_id=_require("CSV_SOURCE_FOLDER_ID"),
         deployment_id="7334f113-3efc-43ec-8ada-2431b1ff1583",
         interval_min=1,
     ),
@@ -32,11 +40,17 @@ WATCHERS: list[WatcherConfig] = [
         deployment_id="ae8a1dcd-42cc-4cae-8c54-b67895e64cca",
         interval_min=1,
     ),
-    # generate-summaries and update-dj-set-collection are triggered
-    # manually or via Prefect schedules, not by Drive file drops
-    # Add them here if you want Drive-triggered runs for those too
-    # Deployment 'update-dj-set-collection/update-deejay-set-collection'
-    # id 'cad08633-d2c8-4873-b2ab-d34714b042e9'.
-    # Deployment 'generate-summaries/generate-summaries'
-    # id 'b532f160-1731-43c9-a1f6-9c7eca474a92'.
+    WatcherConfig(
+        name="wcs-notes",
+        folder_id=_require("NOTES_INPUT_FOLDER_ID"),
+        deployment_id="c3a48fd5-261b-4011-b468-db94347c7ae6",
+        interval_min=1,
+    ),
 ]
+# generate-summaries and update-dj-set-collection are triggered
+# manually or via Prefect schedules, not by Drive file drops
+# Add them here if you want Drive-triggered runs for those too
+# Deployment 'update-dj-set-collection/update-deejay-set-collection'
+# id 'cad08633-d2c8-4873-b2ab-d34714b042e9'.
+# Deployment 'generate-summaries/generate-summaries'
+# id 'b532f160-1731-43c9-a1f6-9c7eca474a92'.
