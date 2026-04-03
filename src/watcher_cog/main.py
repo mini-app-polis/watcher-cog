@@ -9,7 +9,7 @@ import sys
 import sentry_sdk
 from dotenv import load_dotenv
 
-from watcher_cog.config import WATCHERS
+from watcher_cog.config import get_watchers
 from watcher_cog.logger import log
 from watcher_cog.watcher import run_watcher
 
@@ -19,14 +19,16 @@ async def main() -> None:
     load_dotenv()
     sentry_sdk.init(dsn=os.getenv("SENTRY_DSN"), environment="production")
 
-    if not WATCHERS:
+    watchers = get_watchers()
+
+    if not watchers:
         log.warning("no watchers configured - exiting")
         return
 
-    watcher_names = ", ".join(watcher.name for watcher in WATCHERS)
-    log.info("starting %s watcher(s): %s", len(WATCHERS), watcher_names)
+    watcher_names = ", ".join(w.name for w in watchers)
+    log.info("starting %s watcher(s): %s", len(watchers), watcher_names)
 
-    tasks = [run_watcher(watcher) for watcher in WATCHERS]
+    tasks = [run_watcher(w) for w in watchers]
     await asyncio.gather(*tasks)
 
 

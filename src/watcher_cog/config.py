@@ -27,26 +27,30 @@ def _require(name: str) -> str:
     return v
 
 
-WATCHERS: list[WatcherConfig] = [
-    WatcherConfig(
-        name="dj-sets",
-        folder_id=_require("CSV_SOURCE_FOLDER_ID"),
-        deployment_id="7334f113-3efc-43ec-8ada-2431b1ff1583",
-        interval_min=1,
-    ),
-    WatcherConfig(
-        name="live-history",
-        folder_id="1HGxEr5ocY9JLtXcJqDRIOD95rXU6QLUW",
-        deployment_id="ae8a1dcd-42cc-4cae-8c54-b67895e64cca",
-        interval_min=1,
-    ),
-    WatcherConfig(
-        name="wcs-notes",
-        folder_id=_require("NOTES_INPUT_FOLDER_ID"),
-        deployment_id="c3a48fd5-261b-4011-b468-db94347c7ae6",
-        interval_min=1,
-    ),
-]
+def get_watchers() -> list[WatcherConfig]:
+    """Build watcher config from environment. Call after load_dotenv()."""
+    return [
+        WatcherConfig(
+            name="dj-sets",
+            folder_id=_require("CSV_SOURCE_FOLDER_ID"),
+            deployment_id="7334f113-3efc-43ec-8ada-2431b1ff1583",
+            interval_min=1,
+        ),
+        WatcherConfig(
+            name="live-history",
+            folder_id="1HGxEr5ocY9JLtXcJqDRIOD95rXU6QLUW",
+            deployment_id="ae8a1dcd-42cc-4cae-8c54-b67895e64cca",
+            interval_min=1,
+        ),
+        WatcherConfig(
+            name="wcs-notes",
+            folder_id=_require("NOTES_INPUT_FOLDER_ID"),
+            deployment_id="c3a48fd5-261b-4011-b468-db94347c7ae6",
+            interval_min=1,
+        ),
+    ]
+
+
 # generate-summaries and update-dj-set-collection are triggered
 # manually or via Prefect schedules, not by Drive file drops
 # Add them here if you want Drive-triggered runs for those too
