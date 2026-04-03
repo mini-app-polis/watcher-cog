@@ -1,3 +1,11 @@
+## [1.1.8](https://github.com/mini-app-polis/watcher-cog/compare/v1.1.7...v1.1.8) (2026-04-03)
+
+
+### Bug Fixes
+
+* adding env variables instead of ids ([c4e401c](https://github.com/mini-app-polis/watcher-cog/commit/c4e401cee153548ed964e2bfb261f67ff3d6b0c7))
+* tests ([f58dc7b](https://github.com/mini-app-polis/watcher-cog/commit/f58dc7b87104b54bf6cea7f0f139e8c3d769ff43))
+
 ## [1.1.7](https://github.com/mini-app-polis/watcher-cog/compare/v1.1.6...v1.1.7) (2026-04-02)
 
 
