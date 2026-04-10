@@ -1,3 +1,15 @@
+# [1.2.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.1.8...v1.2.0) (2026-04-10)
+
+
+### Bug Fixes
+
+* **watcher:** move heartbeat to finally block; gather with return_exceptions; reset drive_client singleton on auth failure ([99ad7be](https://github.com/mini-app-polis/watcher-cog/commit/99ad7befd318595afd5d6b2e4b2717e28ec59b6d))
+
+
+### Features
+
+* **trigger:** add tenacity retry to prefect_trigger.fire() with 3 attempts and exponential backoff ([8dd74b2](https://github.com/mini-app-polis/watcher-cog/commit/8dd74b28dc88a109e0db6006d0beeb081f415a53))
+
 ## [1.1.8](https://github.com/mini-app-polis/watcher-cog/compare/v1.1.7...v1.1.8) (2026-04-03)
 
 
