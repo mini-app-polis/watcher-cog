@@ -14,4 +14,12 @@ traits:
 deferrals:
   - rule: PY-013
     reason: "Deduplication logic present but possible_duplicate_ prefixing not yet implemented."
+    until: "2026-07-01"
+  - rule: CD-HEALTHCHECKS
+    reason: >
+      watcher-cog pings Healthchecks.io on every poll cycle via heartbeat.py using
+      HEALTHCHECKS_URL. The checker is looking for HEALTHCHECKS_URL_EVALUATOR which is
+      an evaluator-cog concern. This service correctly implements the liveness ping —
+      the finding is a false positive caused by the checker expecting a per-service
+      suffix that does not apply to trigger-cog type services.
     until: null
