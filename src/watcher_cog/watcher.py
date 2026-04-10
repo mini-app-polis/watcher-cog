@@ -46,8 +46,9 @@ async def run_watcher(config: WatcherConfig) -> None:
                     seen_file_ids = all_ids
                     log.debug("[%s] no new files", config.name)
 
-            await heartbeat.ping()
         except Exception as exc:
             log.error("[%s] poll error: %s", config.name, exc, exc_info=True)
+        finally:
+            await heartbeat.ping()
 
         await asyncio.sleep(current_interval * 60)

@@ -29,7 +29,11 @@ def _get_google_api() -> GoogleAPI:
     if GoogleAPI is None:
         raise RuntimeError("common-python-utils is required to use drive_client")
 
-    _google_api = GoogleAPI.from_env()
+    try:
+        _google_api = GoogleAPI.from_env()
+    except Exception:
+        _google_api = None
+        raise
     return _google_api
 
 

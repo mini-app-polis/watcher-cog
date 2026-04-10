@@ -56,3 +56,21 @@ def test_get_file_modified_time_returns_none_when_not_found(
     monkeypatch.setattr(drive_client, "_google_api", google)
 
     assert drive_client.get_file_modified_time("missing") is None
+
+
+def test_get_google_api_resets_singleton_on_init_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(drive_client, "_google_api", None)
+
+    class BrokenGoogleAPI:
+        @classmethod
+        def from_env(cls) -> BrokenGoogleAPI:
+            raise RuntimeError("bad credentials")
+
+    monkeypatch.setattr(drive_client, "GoogleAPI", BrokenGoogleAPI)
+
+    with pytest.raises(RuntimeError, match="bad credentials"):
+        drive_client._get_google_api()
+
+    assert drive_client._google_api is None

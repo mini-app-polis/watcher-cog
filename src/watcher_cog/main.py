@@ -29,7 +29,15 @@ async def main() -> None:
     log.info("starting %s watcher(s): %s", len(watchers), watcher_names)
 
     tasks = [run_watcher(w) for w in watchers]
-    await asyncio.gather(*tasks)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for watcher, result in zip(watchers, results, strict=True):
+        if isinstance(result, BaseException):
+            log.error(
+                "[%s] watcher exited with error: %s",
+                watcher.name,
+                result,
+                exc_info=result,
+            )
 
 
 if __name__ == "__main__":

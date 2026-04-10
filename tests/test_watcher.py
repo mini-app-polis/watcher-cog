@@ -104,7 +104,8 @@ async def test_poll_error_caught_and_loop_continues(monkeypatch: pytest.MonkeyPa
 
     monkeypatch.setattr(watcher_module.drive_client, "list_folder", _list_folder)
     monkeypatch.setattr(watcher_module.prefect_trigger, "fire", AsyncMock())
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    ping = AsyncMock()
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", ping)
     sleep_calls: list[float] = []
     monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, sleep_calls))
     logger = MagicMock()
@@ -117,6 +118,7 @@ async def test_poll_error_caught_and_loop_continues(monkeypatch: pytest.MonkeyPa
 
     assert _list_folder.calls == 2
     logger.error.assert_called_once()
+    assert ping.await_count == 2
 
 
 @pytest.mark.asyncio
