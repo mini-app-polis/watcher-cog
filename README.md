@@ -39,7 +39,7 @@ Each watcher loop (while True):
 ├── drive_client.py  — list files in folder (Google Drive API)
 ├── Diff against seen_file_ids (in-memory set)
 ├── prefect_trigger.py  — POST /deployments/{id}/create_flow_run
-├── heartbeat.py  — ping HEALTHCHECKS_URL
+├── heartbeat.py  — ping HEALTHCHECKS_URL_WATCHER
 └── asyncio.sleep(interval_min * 60)
 ```
 
@@ -87,7 +87,7 @@ All configuration is via environment variables. Copy `.env.example` to `.env` fo
 | `GOOGLE_CREDENTIALS_JSON` | Yes | Service account credentials JSON (as a string, not a file path) |
 | `PREFECT_API_KEY` | Yes | Prefect Cloud API key |
 | `PREFECT_API_URL` | Yes | Prefect Cloud API URL (e.g. `https://api.prefect.cloud/api/accounts/{id}/workspaces/{id}`) |
-| `HEALTHCHECKS_URL` | Yes | Healthchecks.io ping URL for this service |
+| `HEALTHCHECKS_URL_WATCHER` | Yes | Healthchecks.io ping URL for this service |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO` (default), `WARNING` |
 
 ### Watcher config
@@ -176,7 +176,7 @@ The watcher pings Healthchecks.io on every poll cycle. If it goes silent, you ge
    - **Period:** 1 minute
    - **Grace time:** 5 minutes
 3. Copy the ping URL (format: `https://hc-ping.com/your-uuid`)
-4. Set `HEALTHCHECKS_URL=<ping url>` in your environment
+4. Set `HEALTHCHECKS_URL_WATCHER=<ping url>` in your environment
 
 **What this catches:** the watcher process dying, hanging, or Railway failing to restart it within the grace window.
 

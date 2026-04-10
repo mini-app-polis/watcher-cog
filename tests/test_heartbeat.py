@@ -9,7 +9,7 @@ from watcher_cog import heartbeat
 
 @pytest.mark.asyncio
 async def test_ping_calls_get_when_url_set(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("HEALTHCHECKS_URL", "https://hc-ping.com/abc")
+    monkeypatch.setenv("HEALTHCHECKS_URL_WATCHER", "https://hc-ping.com/abc")
 
     response = MagicMock()
     response.raise_for_status.return_value = None
@@ -28,7 +28,7 @@ async def test_ping_calls_get_when_url_set(monkeypatch: pytest.MonkeyPatch) -> N
 
 @pytest.mark.asyncio
 async def test_ping_no_url_no_call(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("HEALTHCHECKS_URL", raising=False)
+    monkeypatch.delenv("HEALTHCHECKS_URL_WATCHER", raising=False)
     async_client = MagicMock()
     monkeypatch.setattr(heartbeat.httpx, "AsyncClient", async_client)
 
@@ -39,7 +39,7 @@ async def test_ping_no_url_no_call(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.asyncio
 async def test_ping_exception_logged_not_raised(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("HEALTHCHECKS_URL", "https://hc-ping.com/abc")
+    monkeypatch.setenv("HEALTHCHECKS_URL_WATCHER", "https://hc-ping.com/abc")
 
     get = AsyncMock(side_effect=RuntimeError("network error"))
     client = MagicMock()

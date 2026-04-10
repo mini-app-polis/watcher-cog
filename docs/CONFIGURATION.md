@@ -8,7 +8,7 @@ for the full list with descriptions.
 | GOOGLE_CREDENTIALS_JSON | Yes | Service account credentials JSON as a string |
 | PREFECT_API_KEY | Yes | Prefect Cloud API key |
 | PREFECT_API_URL | Yes | Prefect Cloud workspace API URL |
-| HEALTHCHECKS_URL | Yes | Healthchecks.io ping URL |
+| HEALTHCHECKS_URL_WATCHER | Yes | Healthchecks.io ping URL |
 | SENTRY_DSN | Yes | Sentry DSN for error tracking |
 | LOG_LEVEL | No | DEBUG, INFO (default), WARNING |
 

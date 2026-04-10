@@ -18,7 +18,7 @@ deferrals:
   - rule: CD-HEALTHCHECKS
     reason: >
       watcher-cog pings Healthchecks.io on every poll cycle via heartbeat.py using
-      HEALTHCHECKS_URL. The checker is looking for HEALTHCHECKS_URL_EVALUATOR which is
+      HEALTHCHECKS_URL_WATCHER. The checker is looking for HEALTHCHECKS_URL_EVALUATOR which is
       an evaluator-cog concern. This service correctly implements the liveness ping —
       the finding is a false positive caused by the checker expecting a per-service
       suffix that does not apply to trigger-cog type services.

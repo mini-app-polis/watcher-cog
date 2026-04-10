@@ -11,7 +11,7 @@ from watcher_cog.logger import log
 
 async def ping() -> None:
     """Ping healthchecks endpoint if configured."""
-    url = os.getenv("HEALTHCHECKS_URL", "").strip()
+    url = os.getenv("HEALTHCHECKS_URL_WATCHER", "").strip()
     if not url:
         return
 
