@@ -5,10 +5,16 @@ from __future__ import annotations
 import os
 
 import httpx
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from watcher_cog.logger import log
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    reraise=True,
+)
 async def fire(deployment_id: str) -> None:
     """Trigger a Prefect deployment run."""
     api_key = os.getenv("PREFECT_API_KEY", "").strip()
