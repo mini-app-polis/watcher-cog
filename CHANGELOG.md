@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.2.0...v1.2.1) (2026-04-10)
+
+
+### Bug Fixes
+
+* **heartbeat:** rename HEALTHCHECKS_URL to HEALTHCHECKS_URL_WATCHER ([5a4598e](https://github.com/mini-app-polis/watcher-cog/commit/5a4598ec8b2268e1fe8409be981b639360e03b61))
+
 # [1.2.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.1.8...v1.2.0) (2026-04-10)
 
 
