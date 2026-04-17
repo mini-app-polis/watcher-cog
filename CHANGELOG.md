@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.3.0...v1.4.0) (2026-04-17)
+
+
+### Features
+
+* upgrade common for auth ([2f60548](https://github.com/mini-app-polis/watcher-cog/commit/2f605488a715d00172eefa79cc66a9883e4d8839))
+
 # [1.3.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.2.2...v1.3.0) (2026-04-17)
 
 
