@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.5.0...v1.6.0) (2026-04-18)
+
+
+### Features
+
+* bump common-python-utils ([4801b93](https://github.com/mini-app-polis/watcher-cog/commit/4801b9349efeb95895a4a103e2e9a04ab1d2ac70))
+
 # [1.5.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.4.0...v1.5.0) (2026-04-17)
 
 
