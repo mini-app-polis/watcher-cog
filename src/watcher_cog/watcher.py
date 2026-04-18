@@ -12,7 +12,9 @@ from watcher_cog.logger import log
 
 async def run_watcher(config: WatcherConfig) -> None:
     """Run a single folder watcher loop forever."""
-    seen_file_ids: set[str] = set()
+    # Track file_id -> modified_time string so we detect both new files
+    # and modifications to existing files.
+    seen: dict[str, str | None] = {}
     initialized = False
 
     while True:
@@ -26,25 +28,30 @@ async def run_watcher(config: WatcherConfig) -> None:
                         current_interval = config.idle_interval_min
 
             files = drive_client.list_folder(config.folder_id)
-            all_ids = {file.id for file in files}
+            current: dict[str, str | None] = {file.id: file.modified_time for file in files}
 
             if not initialized:
-                seen_file_ids = all_ids
+                seen = current
                 initialized = True
-                log.info("[%s] initialised with %s file(s)", config.name, len(all_ids))
+                log.info("[%s] initialised with %s file(s)", config.name, len(seen))
             else:
-                new_files = [file for file in files if file.id not in seen_file_ids]
-                if new_files:
+                new_files = [fid for fid in current if fid not in seen]
+                modified_files = [
+                    fid for fid, mtime in current.items() if fid in seen and mtime != seen[fid]
+                ]
+
+                if new_files or modified_files:
                     await prefect_trigger.fire(config.deployment_id)
-                    seen_file_ids = all_ids
+                    seen = current
                     log.info(
-                        "[%s] %s new file(s) - trigger fired",
+                        "[%s] %s new, %s modified — trigger fired",
                         config.name,
                         len(new_files),
+                        len(modified_files),
                     )
                 else:
-                    seen_file_ids = all_ids
-                    log.debug("[%s] no new files", config.name)
+                    seen = current
+                    log.debug("[%s] no changes", config.name)
 
         except Exception as exc:
             log.error("[%s] poll error: %s", config.name, exc, exc_info=True)
