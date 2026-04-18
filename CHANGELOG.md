@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.6.0...v1.6.1) (2026-04-18)
+
+
+### Bug Fixes
+
+* trigger on file changes ([14a0b9a](https://github.com/mini-app-polis/watcher-cog/commit/14a0b9a7939b32e54a11c0abdea5b6e6239f14b2))
+
 # [1.6.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.5.0...v1.6.0) (2026-04-18)
 
 
