@@ -11,8 +11,5 @@ traits:
 exemptions:
   - rule: PRIN-005
     reason: "Three-layer observability is satisfied for this trigger-cog: Healthchecks liveness ping via HEALTHCHECKS_URL_WATCHER (src/watcher_cog/heartbeat.py, pinged on each poll cycle), structured logging via common-python-utils (declared dependency, shared logger used throughout), and Sentry error tracking (sentry-sdk initialized in src/watcher_cog/main.py at startup). PRIN-005's check_notes scope 'Prefect run history' to pipelines via the '(for pipelines)' parenthetical. Watcher-cog is a trigger-cog, not a pipeline — its operational signal is the Healthchecks ping cadence plus Sentry exceptions. Prefect run history belongs to the downstream pipeline-cogs watcher-cog triggers, not the trigger source itself."
-
-deferrals:
   - rule: PY-013
-    reason: "Deduplication logic present but possible_duplicate_ prefixing not yet implemented."
-    until: "2026-07-01"
+    reason: "Watcher-cog has no processing inputs that can be duplicated. Its core loop (src/watcher_cog/watcher.py) performs change detection across Drive folder snapshots — comparing current file state against the previous poll's `seen` dict — and fires a downstream Prefect trigger when new or modified files are detected. This is change detection, not deduplication. The cog does not process file contents; downstream pipeline-cogs handle idempotency for any work they do with the files. PY-013's detective check looks for dedup-awareness signals, but the conceptual category (dedup of processing inputs) does not apply here — there are no inputs being processed."
