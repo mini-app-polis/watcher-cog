@@ -4,7 +4,7 @@ Date: 2026-03-15
 
 ## Status
 
-Accepted. Revisit when next touching this repo — see `docs/BACKLOG.md`.
+Superseded 2026-04-23 — see Update below.
 
 ## Context
 
@@ -59,3 +59,24 @@ open as an INFO-level indicator that this backlog item exists.
 - The hand-rolled bearer-token auth in `prefect_trigger.py` is a
   second thing to maintain. Tenacity retry logic is the other. Both
   would go away with PrefectClient.
+
+## Update (2026-04-23)
+
+The migration described in `docs/BACKLOG.md` shipped. `prefect_trigger.py`
+now uses `prefect.get_client()` and
+`client.create_flow_run_from_deployment()`. Tenacity was removed -
+the SDK's built-in retry handling covers the transient-error case.
+
+Net consequences relative to this ADR's original "Consequences" section:
+
+- `prefect` is now a runtime dependency. The SDK's transitive graph is
+  larger than `httpx` alone, but has not introduced any operational
+  issues on Railway.
+- Triggered events appear in Prefect Cloud as SDK-initiated client
+  calls. Flow run IDs are now logged at trigger time, giving a direct
+  link from the watcher heartbeat logs to the downstream run history.
+- PIPE-001 clears on the next conformance run.
+- The hand-rolled bearer-token header and tenacity wrapper are gone.
+- ADR-001 (always-on trigger-cog, not a flow) is unaffected - this
+  migration changed only how the trigger calls Prefect, not what
+  watcher-cog fundamentally is.

@@ -1,41 +1,36 @@
-"""Prefect trigger client."""
+"""Prefect trigger client.
+
+Uses the Prefect Python client (`prefect.get_client()`) to create flow
+runs from deployments. Reads `PREFECT_API_KEY` and `PREFECT_API_URL`
+from the environment — both are consumed automatically by the SDK and
+must be set at process startup.
+
+The SDK's default retry behavior handles transient API errors. No
+application-level retry wrapper is needed; see ADR-002 for the history
+of why this cog previously used raw httpx + tenacity.
+"""
 
 from __future__ import annotations
 
-import os
-
-import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential
+from prefect import get_client
 
 from watcher_cog.logger import log
 
 
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
-    reraise=True,
-)
 async def fire(deployment_id: str) -> None:
-    """Trigger a Prefect deployment run."""
-    api_key = os.getenv("PREFECT_API_KEY", "").strip()
-    api_url = os.getenv("PREFECT_API_URL", "").strip().rstrip("/")
+    """Trigger a Prefect deployment run.
 
-    if not api_key:
-        raise RuntimeError("PREFECT_API_KEY is not set")
-    if not api_url:
-        raise RuntimeError("PREFECT_API_URL is not set")
-
-    endpoint = f"{api_url}/deployments/{deployment_id}/create_flow_run"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(endpoint, headers=headers, json={})
-        log.info(
-            "prefect trigger fired deployment_id=%s status=%s",
-            deployment_id,
-            response.status_code,
+    Creates a flow run for the given deployment and returns immediately
+    — the run is enqueued in Prefect Cloud and executed by the target
+    cog's serve() loop. This function does not wait for the run to
+    complete.
+    """
+    async with get_client() as client:
+        flow_run = await client.create_flow_run_from_deployment(
+            deployment_id=deployment_id,
         )
-        response.raise_for_status()
+        log.info(
+            "prefect trigger fired deployment_id=%s flow_run_id=%s",
+            deployment_id,
+            flow_run.id,
+        )
