@@ -28,7 +28,9 @@ async def run_watcher(config: WatcherConfig) -> None:
                         current_interval = config.idle_interval_min
 
             files = drive_client.list_folder(config.folder_id)
-            current: dict[str, str | None] = {file.id: file.modified_time for file in files}
+            current: dict[str, str | None] = {
+                file.id: file.modified_time for file in files
+            }
 
             if not initialized:
                 seen = current
@@ -37,7 +39,9 @@ async def run_watcher(config: WatcherConfig) -> None:
             else:
                 new_files = [fid for fid in current if fid not in seen]
                 modified_files = [
-                    fid for fid, mtime in current.items() if fid in seen and mtime != seen[fid]
+                    fid
+                    for fid, mtime in current.items()
+                    if fid in seen and mtime != seen[fid]
                 ]
 
                 if new_files or modified_files:

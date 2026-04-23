@@ -47,7 +47,9 @@ def get_file_modified_time(file_id: str) -> datetime | None:
     """Return the modified time of a specific file, or None if not found."""
     g = _get_google_api()
     try:
-        result = g.drive.service.files().get(fileId=file_id, fields="modifiedTime").execute()
+        result = (
+            g.drive.service.files().get(fileId=file_id, fields="modifiedTime").execute()
+        )
     except Exception as exc:
         log.debug("failed to fetch modified time for %s: %s", file_id, exc)
         return None

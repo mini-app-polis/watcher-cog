@@ -17,7 +17,9 @@ class LoopExit(Exception):
 
 
 def _file(file_id: str) -> SimpleNamespace:
-    return SimpleNamespace(id=file_id, name=f"{file_id}.txt", mime_type=None, modified_time=None)
+    return SimpleNamespace(
+        id=file_id, name=f"{file_id}.txt", mime_type=None, modified_time=None
+    )
 
 
 def _make_sleep(
@@ -33,7 +35,9 @@ def _make_sleep(
 
 
 @pytest.mark.asyncio
-async def test_first_run_initializes_without_trigger(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_first_run_initializes_without_trigger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def list_folder(_: str) -> list:
         return [_file("a"), _file("b")]
 
@@ -44,7 +48,9 @@ async def test_first_run_initializes_without_trigger(monkeypatch: pytest.MonkeyP
     sleep_calls: list[float] = []
     monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(1, sleep_calls))
 
-    config = WatcherConfig(name="w1", folder_id="folder", deployment_id="dep", interval_min=2)
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=2
+    )
 
     with pytest.raises(LoopExit):
         await run_watcher(config)
@@ -54,9 +60,13 @@ async def test_first_run_initializes_without_trigger(monkeypatch: pytest.MonkeyP
 
 
 @pytest.mark.asyncio
-async def test_second_run_no_new_files_no_trigger(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_second_run_no_new_files_no_trigger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     folders = [[_file("a"), _file("b")], [_file("a"), _file("b")]]
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", lambda _: folders.pop(0))
+    monkeypatch.setattr(
+        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
+    )
     fire = AsyncMock()
     monkeypatch.setattr(watcher_module.prefect_trigger, "fire", fire)
     monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
@@ -73,9 +83,13 @@ async def test_second_run_no_new_files_no_trigger(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.asyncio
-async def test_second_run_with_new_files_fires_trigger(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_second_run_with_new_files_fires_trigger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     folders = [[_file("a"), _file("b")], [_file("a"), _file("b"), _file("c")]]
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", lambda _: folders.pop(0))
+    monkeypatch.setattr(
+        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
+    )
     fire = AsyncMock()
     monkeypatch.setattr(watcher_module.prefect_trigger, "fire", fire)
     monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
@@ -92,7 +106,9 @@ async def test_second_run_with_new_files_fires_trigger(monkeypatch: pytest.Monke
 
 
 @pytest.mark.asyncio
-async def test_poll_error_caught_and_loop_continues(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_poll_error_caught_and_loop_continues(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def _list_folder(_: str) -> list:
         if _list_folder.calls == 0:
             _list_folder.calls += 1
@@ -125,7 +141,9 @@ async def test_poll_error_caught_and_loop_continues(monkeypatch: pytest.MonkeyPa
 async def test_activity_signal_recent_file_uses_active_interval(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", lambda _: [_file("a")])
+    monkeypatch.setattr(
+        watcher_module.drive_client, "list_folder", lambda _: [_file("a")]
+    )
     monkeypatch.setattr(
         watcher_module.drive_client,
         "get_file_modified_time",
@@ -157,7 +175,9 @@ async def test_activity_signal_recent_file_uses_active_interval(
 async def test_activity_signal_old_file_uses_idle_interval(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", lambda _: [_file("a")])
+    monkeypatch.setattr(
+        watcher_module.drive_client, "list_folder", lambda _: [_file("a")]
+    )
     monkeypatch.setattr(
         watcher_module.drive_client,
         "get_file_modified_time",

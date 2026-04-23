@@ -10,7 +10,9 @@ from watcher_cog import prefect_trigger
 @pytest.mark.asyncio
 async def test_fire_success_logs_status(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PREFECT_API_KEY", "key")
-    monkeypatch.setenv("PREFECT_API_URL", "https://api.prefect.cloud/api/accounts/a/workspaces/w")
+    monkeypatch.setenv(
+        "PREFECT_API_URL", "https://api.prefect.cloud/api/accounts/a/workspaces/w"
+    )
 
     response = MagicMock(status_code=201)
     response.raise_for_status.return_value = None
@@ -35,7 +37,9 @@ async def test_fire_success_logs_status(monkeypatch: pytest.MonkeyPatch) -> None
 @pytest.mark.asyncio
 async def test_fire_raises_on_non_2xx(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PREFECT_API_KEY", "key")
-    monkeypatch.setenv("PREFECT_API_URL", "https://api.prefect.cloud/api/accounts/a/workspaces/w")
+    monkeypatch.setenv(
+        "PREFECT_API_URL", "https://api.prefect.cloud/api/accounts/a/workspaces/w"
+    )
 
     response = MagicMock(status_code=500)
     response.raise_for_status.side_effect = RuntimeError("server error")

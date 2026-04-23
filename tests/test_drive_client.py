@@ -10,7 +10,9 @@ from watcher_cog import drive_client
 
 def test_list_folder_returns_files(monkeypatch: pytest.MonkeyPatch) -> None:
     expected = [SimpleNamespace(id="a"), SimpleNamespace(id="b")]
-    google = SimpleNamespace(drive=SimpleNamespace(get_files_in_folder=lambda folder_id: expected))
+    google = SimpleNamespace(
+        drive=SimpleNamespace(get_files_in_folder=lambda folder_id: expected)
+    )
     monkeypatch.setattr(drive_client, "_google_api", google)
 
     result = drive_client.list_folder("folder-1")

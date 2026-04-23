@@ -19,7 +19,9 @@ async def test_ping_calls_get_when_url_set(monkeypatch: pytest.MonkeyPatch) -> N
     context_manager = MagicMock()
     context_manager.__aenter__ = AsyncMock(return_value=client)
     context_manager.__aexit__ = AsyncMock(return_value=None)
-    monkeypatch.setattr(heartbeat.httpx, "AsyncClient", MagicMock(return_value=context_manager))
+    monkeypatch.setattr(
+        heartbeat.httpx, "AsyncClient", MagicMock(return_value=context_manager)
+    )
 
     await heartbeat.ping()
 
@@ -38,7 +40,9 @@ async def test_ping_no_url_no_call(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_ping_exception_logged_not_raised(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ping_exception_logged_not_raised(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("HEALTHCHECKS_URL_WATCHER", "https://hc-ping.com/abc")
 
     get = AsyncMock(side_effect=RuntimeError("network error"))
@@ -47,7 +51,9 @@ async def test_ping_exception_logged_not_raised(monkeypatch: pytest.MonkeyPatch)
     context_manager = MagicMock()
     context_manager.__aenter__ = AsyncMock(return_value=client)
     context_manager.__aexit__ = AsyncMock(return_value=None)
-    monkeypatch.setattr(heartbeat.httpx, "AsyncClient", MagicMock(return_value=context_manager))
+    monkeypatch.setattr(
+        heartbeat.httpx, "AsyncClient", MagicMock(return_value=context_manager)
+    )
 
     logger = MagicMock()
     monkeypatch.setattr(heartbeat, "log", logger)

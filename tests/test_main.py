@@ -25,7 +25,9 @@ async def test_main_no_watchers_exits_early(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 @pytest.mark.asyncio
-async def test_main_logs_error_when_watcher_crashes(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_main_logs_error_when_watcher_crashes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     config = WatcherConfig(name="bad-watcher", folder_id="f", deployment_id="d")
     monkeypatch.setattr(main_module, "get_watchers", lambda: [config])
     monkeypatch.setattr("watcher_cog.main.load_dotenv", lambda: None)

@@ -30,10 +30,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.ruff]
-line-length = 100  # deliberate deviation from ecosystem standard
-                   # (88) — watcher-cog established before PY-010
-                   # was standardized. Migrate to 88 when next
-                   # reworking this file.
+line-length = 88
 target-version = "py311"
 
 [tool.ruff.lint]
