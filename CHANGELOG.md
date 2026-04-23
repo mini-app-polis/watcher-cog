@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.6.1...v1.7.0) (2026-04-23)
+
+
+### Features
+
+* **trigger:** migrate prefect_trigger.py to PrefectClient ([f96af92](https://github.com/mini-app-polis/watcher-cog/commit/f96af922ed4a2e87804644b9d5a639e8efed5f05))
+
 ## [1.6.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.6.0...v1.6.1) (2026-04-18)
 
 
