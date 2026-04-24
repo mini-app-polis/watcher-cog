@@ -42,6 +42,27 @@ def test_get_file_modified_time_parses_iso(monkeypatch: pytest.MonkeyPatch) -> N
     assert result == datetime(2026, 3, 24, 17, 55, tzinfo=UTC)
 
 
+def test_parse_modified_time_normalizes_z_suffix_to_utc_offset() -> None:
+    """TEST-001: the parse transform replaces Drive's trailing 'Z' with
+    the '+00:00' offset that datetime.fromisoformat requires, and
+    returns a UTC-aware datetime of the expected shape."""
+    result = drive_client._parse_modified_time("2026-03-24T17:55:00.000Z")
+
+    assert isinstance(result, datetime)
+    assert result == datetime(2026, 3, 24, 17, 55, tzinfo=UTC)
+    assert result.tzinfo is not None
+    assert result.utcoffset().total_seconds() == 0
+
+
+def test_parse_modified_time_handles_explicit_offset() -> None:
+    """The parse transform passes through explicit offsets unchanged."""
+    result = drive_client._parse_modified_time("2026-03-24T12:55:00.000-05:00")
+
+    assert isinstance(result, datetime)
+    # Same instant as 17:55 UTC.
+    assert result.astimezone(UTC) == datetime(2026, 3, 24, 17, 55, tzinfo=UTC)
+
+
 def test_get_file_modified_time_returns_none_when_not_found(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
