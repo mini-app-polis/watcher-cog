@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -203,3 +204,33 @@ async def test_activity_signal_old_file_uses_idle_interval(
         await run_watcher(config)
 
     assert sleep_calls == [600]
+
+
+def test_watcher_config_dataclass_field_set() -> None:
+    """TEST-004: assert WatcherConfig exposes exactly the expected
+    field set. A silent add/remove of a config field would pass the
+    constructor-call tests without this check."""
+    fields = {f.name for f in dataclasses.fields(WatcherConfig)}
+    assert fields == {
+        "name",
+        "folder_id",
+        "deployment_id",
+        "interval_min",
+        "idle_interval_min",
+        "activity_signal",
+        "activity_file_id",
+        "activity_threshold_min",
+    }
+
+
+def test_watcher_config_default_values() -> None:
+    """Shape-adjacent: defaults are stable across the optional fields.
+    Catches a change like flipping a default that would silently alter
+    the trigger cadence for existing watchers."""
+    config = WatcherConfig(name="w", folder_id="f", deployment_id="d")
+
+    assert config.interval_min == 1
+    assert config.idle_interval_min == 1
+    assert config.activity_signal == "none"
+    assert config.activity_file_id is None
+    assert config.activity_threshold_min == 10
