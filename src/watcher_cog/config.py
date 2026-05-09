@@ -59,7 +59,9 @@ def get_watchers() -> list[WatcherConfig]:
         ),
         WatcherConfig(
             name="voice-notes",
-            folder_id=_require("VOICE_INBOX_FOLDER_ID"),
+            # Same env var voicenotes-cog reads, so the Doppler
+            # config holds one folder-ID value, not two.
+            folder_id=_require("GOOGLE_DRIVE_VOICE_INBOX_FOLDER_ID"),
             # voicenotes-cog's single deployment is the router flow
             # (voicenotes-router/voicenotes).
             deployment_id="020a34b4-2b22-42f4-841b-8634211d113b",

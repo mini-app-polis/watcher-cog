@@ -13,7 +13,7 @@ for the full list with descriptions.
 | LOG_LEVEL | No | DEBUG, INFO (default), WARNING |
 | CSV_SOURCE_FOLDER_ID | Yes | Drive folder ID watched by `dj-sets` |
 | NOTES_INPUT_FOLDER_ID | Yes | Drive folder ID watched by `wcs-notes` |
-| VOICE_INBOX_FOLDER_ID | Yes | Drive folder ID watched by `voice-notes` (voicenotes-cog inbox) |
+| GOOGLE_DRIVE_VOICE_INBOX_FOLDER_ID | Yes | Drive folder ID watched by `voice-notes` — same env-var name voicenotes-cog reads, so the Doppler config holds one value for both |
 
 ## Watcher config
 
