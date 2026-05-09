@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -18,6 +18,15 @@ class WatcherConfig:
     activity_signal: str = "none"
     activity_file_id: str | None = None
     activity_threshold_min: int = 10
+    parameters: dict[str, object] = field(default_factory=dict)
+    """Optional flow-run parameters merged into the deployment trigger.
+
+    Watchers that target a router-style deployment (one that
+    dispatches multiple modes via a ``mode`` parameter) use this to
+    pin the dispatch mode for trigger fires. Example: voicenotes-cog
+    uses ``parameters={"mode": "ingest"}`` so the watcher trigger
+    doesn't fall into the deployment's cron-default mode.
+    """
 
 
 def _require(name: str) -> str:
@@ -47,6 +56,19 @@ def get_watchers() -> list[WatcherConfig]:
             folder_id=_require("NOTES_INPUT_FOLDER_ID"),
             deployment_id="c3a48fd5-261b-4011-b468-db94347c7ae6",
             interval_min=1,
+        ),
+        WatcherConfig(
+            name="voice-notes",
+            folder_id=_require("VOICE_INBOX_FOLDER_ID"),
+            # voicenotes-cog's single deployment is the router flow
+            # (voicenotes-router/voicenotes). Fill in the UUID here
+            # after the cog's first successful Railway deploy
+            # registers the deployment in Prefect Cloud.
+            deployment_id="REPLACE_WITH_VOICENOTES_ROUTER_DEPLOYMENT_ID",
+            interval_min=1,
+            # Required: the deployment's cron-default mode is
+            # "cleanup". The watcher fires it as ingest.
+            parameters={"mode": "ingest"},
         ),
     ]
 

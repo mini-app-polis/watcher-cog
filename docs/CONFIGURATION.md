@@ -11,8 +11,19 @@ for the full list with descriptions.
 | HEALTHCHECKS_URL_WATCHER | Yes | Healthchecks.io ping URL |
 | SENTRY_DSN | Yes | Sentry DSN for error tracking |
 | LOG_LEVEL | No | DEBUG, INFO (default), WARNING |
+| CSV_SOURCE_FOLDER_ID | Yes | Drive folder ID watched by `dj-sets` |
+| NOTES_INPUT_FOLDER_ID | Yes | Drive folder ID watched by `wcs-notes` |
+| VOICE_INBOX_FOLDER_ID | Yes | Drive folder ID watched by `voice-notes` (voicenotes-cog inbox) |
 
 ## Watcher config
 
 Watchers are defined in src/watcher_cog/config.py as a list of
 WatcherConfig dataclasses. See README.md for full field documentation.
+
+The optional `parameters: dict` field on WatcherConfig is forwarded
+as flow-run parameters to `create_flow_run_from_deployment`. Used by
+router-style deployments (one Prefect deployment dispatching to
+multiple modes via a `mode` parameter) to pin the dispatch mode for
+trigger-fired runs. Example: the `voice-notes` watcher pins
+`{"mode": "ingest"}` so the trigger doesn't fall into the
+voicenotes-router deployment's cron-default mode of `"cleanup"`.

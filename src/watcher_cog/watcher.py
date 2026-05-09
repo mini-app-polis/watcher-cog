@@ -45,7 +45,10 @@ async def run_watcher(config: WatcherConfig) -> None:
                 ]
 
                 if new_files or modified_files:
-                    await prefect_trigger.fire(config.deployment_id)
+                    await prefect_trigger.fire(
+                        config.deployment_id,
+                        parameters=config.parameters,
+                    )
                     seen = current
                     log.info(
                         "[%s] %s new, %s modified — trigger fired",
