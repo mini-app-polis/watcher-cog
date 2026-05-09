@@ -1,3 +1,10 @@
+## [1.8.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.8.0...v1.8.1) (2026-05-09)
+
+
+### Bug Fixes
+
+* align voice-notes folder env var with voicenotes-cog ([cf7073e](https://github.com/mini-app-polis/watcher-cog/commit/cf7073e0c090f4732a8f078e470985310a1bd62f))
+
 # [1.8.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.7.0...v1.8.0) (2026-05-09)
 
 
