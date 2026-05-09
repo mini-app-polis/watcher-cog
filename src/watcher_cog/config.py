@@ -61,10 +61,8 @@ def get_watchers() -> list[WatcherConfig]:
             name="voice-notes",
             folder_id=_require("VOICE_INBOX_FOLDER_ID"),
             # voicenotes-cog's single deployment is the router flow
-            # (voicenotes-router/voicenotes). Fill in the UUID here
-            # after the cog's first successful Railway deploy
-            # registers the deployment in Prefect Cloud.
-            deployment_id="REPLACE_WITH_VOICENOTES_ROUTER_DEPLOYMENT_ID",
+            # (voicenotes-router/voicenotes).
+            deployment_id="020a34b4-2b22-42f4-841b-8634211d113b",
             interval_min=1,
             # Required: the deployment's cron-default mode is
             # "cleanup". The watcher fires it as ingest.

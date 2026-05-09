@@ -102,7 +102,8 @@ async def test_second_run_with_new_files_fires_trigger(
     with pytest.raises(LoopExit):
         await run_watcher(config)
 
-    fire.assert_awaited_once_with("dep")
+    # Default WatcherConfig has parameters={}; the trigger forwards it.
+    fire.assert_awaited_once_with("dep", parameters={})
     assert sleep_calls == [60, 60]
 
 
@@ -220,6 +221,7 @@ def test_watcher_config_dataclass_field_set() -> None:
         "activity_signal",
         "activity_file_id",
         "activity_threshold_min",
+        "parameters",
     }
 
 
@@ -234,3 +236,4 @@ def test_watcher_config_default_values() -> None:
     assert config.activity_signal == "none"
     assert config.activity_file_id is None
     assert config.activity_threshold_min == 10
+    assert config.parameters == {}

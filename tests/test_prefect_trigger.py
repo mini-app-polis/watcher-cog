@@ -41,11 +41,24 @@ async def test_fire_success_logs_flow_run_id(monkeypatch: pytest.MonkeyPatch) ->
 
     await prefect_trigger.fire("dep-123")
 
-    create.assert_awaited_once_with(deployment_id="dep-123")
+    # No parameters passed → empty dict is forwarded.
+    create.assert_awaited_once_with(deployment_id="dep-123", parameters={})
     logger.info.assert_called_once()
     args = logger.info.call_args.args
     assert "dep-123" in args
     assert "flow-run-abc" in args
+
+
+@pytest.mark.asyncio
+async def test_fire_forwards_parameters(monkeypatch: pytest.MonkeyPatch) -> None:
+    create = _mock_get_client(monkeypatch)
+    monkeypatch.setattr(prefect_trigger, "log", MagicMock())
+
+    await prefect_trigger.fire("dep-456", parameters={"mode": "ingest"})
+
+    create.assert_awaited_once_with(
+        deployment_id="dep-456", parameters={"mode": "ingest"}
+    )
 
 
 @pytest.mark.asyncio
