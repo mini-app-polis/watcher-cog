@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.7.0...v1.8.0) (2026-05-09)
+
+
+### Features
+
+* voice-notes watcher + parameters support on triggers ([f13bfd0](https://github.com/mini-app-polis/watcher-cog/commit/f13bfd08ec6d26dd41cea8744eb3b0f14cffa89a))
+
 # [1.7.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.6.1...v1.7.0) (2026-04-23)
 
 
