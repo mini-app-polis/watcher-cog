@@ -1,3 +1,10 @@
+## [1.9.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.9.0...v1.9.1) (2026-05-14)
+
+
+### Bug Fixes
+
+* updating new notes pattern ([a9e9a94](https://github.com/mini-app-polis/watcher-cog/commit/a9e9a94f4fd4502ff0c59e8b827c7a680a02bae8))
+
 # [1.9.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.8.1...v1.9.0) (2026-05-14)
 
 

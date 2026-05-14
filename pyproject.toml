@@ -1,6 +1,6 @@
 [project]
 name = "watcher-cog"
-version = "1.9.0"
+version = "1.9.1"
 description = "Google Drive watcher worker that triggers Prefect deployments."
 readme = "README.md"
 requires-python = ">=3.11"
