@@ -59,7 +59,7 @@ _DEEJAY_ROUTER_DEPLOYMENT_ID = "f717735e-5a04-4aeb-ab98-cf60e8d1be0f"
 #: Replaces the legacy `process-transcript/notes-ingest-cog` deployment
 #: (`c3a48fd5-…`) and the standalone `voicenotes-router/voicenotes`
 #: deployment (`020a34b4-…`).
-_TRANSCRIPTION_ROUTER_DEPLOYMENT_ID = "e23649c2-fdfa-4702-9a47-af3662839a28"
+_TRANSCRIPTION_ROUTER_DEPLOYMENT_ID = "a0bd7094-e90c-43d3-aed9-8e1fd7923687"
 
 
 def get_watchers() -> list[WatcherConfig]:
