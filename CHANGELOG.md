@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.9.1...v1.10.0) (2026-05-14)
+
+
+### Features
+
+* migrate to transcription cog ([fb28cff](https://github.com/mini-app-polis/watcher-cog/commit/fb28cff0eb644ca6785b3856a5b34c0570893f8e))
+
 ## [1.9.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.9.0...v1.9.1) (2026-05-14)
 
 
