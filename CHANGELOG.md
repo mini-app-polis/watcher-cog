@@ -1,3 +1,10 @@
+# [1.9.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.8.1...v1.9.0) (2026-05-14)
+
+
+### Features
+
+* using single deejay cog deployment ([71405b0](https://github.com/mini-app-polis/watcher-cog/commit/71405b0d81159a4e6fd1d672363ecbde7cbb3dd2))
+
 ## [1.8.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.8.0...v1.8.1) (2026-05-09)
 
 
