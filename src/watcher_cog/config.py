@@ -36,20 +36,29 @@ def _require(name: str) -> str:
     return v
 
 
+#: deejay-cog now serves a single router deployment
+#: (`deejay-cog/deejay-cog`) that dispatches via a `mode` parameter.
+#: Both dj-sets and live-history watchers point at the same deployment
+#: UUID and differ only by the mode they pass in.
+_DEEJAY_ROUTER_DEPLOYMENT_ID = "f717735e-5a04-4aeb-ab98-cf60e8d1be0f"
+
+
 def get_watchers() -> list[WatcherConfig]:
     """Build watcher config from environment. Call after load_dotenv()."""
     return [
         WatcherConfig(
             name="dj-sets",
             folder_id=_require("CSV_SOURCE_FOLDER_ID"),
-            deployment_id="7334f113-3efc-43ec-8ada-2431b1ff1583",
+            deployment_id=_DEEJAY_ROUTER_DEPLOYMENT_ID,
             interval_min=1,
+            parameters={"mode": "process-new-files"},
         ),
         WatcherConfig(
             name="live-history",
             folder_id="1HGxEr5ocY9JLtXcJqDRIOD95rXU6QLUW",
-            deployment_id="ae8a1dcd-42cc-4cae-8c54-b67895e64cca",
+            deployment_id=_DEEJAY_ROUTER_DEPLOYMENT_ID,
             interval_min=1,
+            parameters={"mode": "ingest-live-history"},
         ),
         WatcherConfig(
             name="wcs-notes",
