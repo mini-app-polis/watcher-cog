@@ -23,9 +23,12 @@ class WatcherConfig:
 
     Watchers that target a router-style deployment (one that
     dispatches multiple modes via a ``mode`` parameter) use this to
-    pin the dispatch mode for trigger fires. Example: voicenotes-cog
-    uses ``parameters={"mode": "ingest"}`` so the watcher trigger
-    doesn't fall into the deployment's cron-default mode.
+    pin the dispatch mode for trigger fires. Examples: ``dj-sets``
+    pins ``{"mode": "process-new-files"}`` against deejay-cog's
+    router; ``wcs-notes`` pins ``{"mode": "wcs-transcripts"}`` and
+    ``voice-notes`` pins ``{"mode": "voicenotes"}`` against
+    transcription-cog's router. The transcription-cog router has no
+    cron-default mode — every trigger must specify one.
     """
 
 
@@ -42,17 +45,21 @@ def _require(name: str) -> str:
 #: UUID and differ only by the mode they pass in.
 _DEEJAY_ROUTER_DEPLOYMENT_ID = "f717735e-5a04-4aeb-ab98-cf60e8d1be0f"
 
-#: notes-ingest-cog now serves a single router deployment
-#: (`notes-ingest-cog/notes-ingest-cog`) that hosts both the original
-#: WCS-transcripts pipeline AND the voicenotes pipeline (merged from
-#: the legacy `voicenotes-cog` repo in May 2026 — see
-#: notes-ingest-cog/docs/decisions/ADR-004-voicenotes-merge.md).
+#: transcription-cog (originally notes-ingest-cog — renamed May 2026, see
+#: ADR-004) now serves a single router deployment that hosts both the
+#: WCS-transcripts pipeline AND the voicenotes pipeline (which was
+#: merged in from the legacy `voicenotes-cog` repo at the same time).
+#: The Prefect deployment name was kept as `notes-ingest-cog/notes-ingest-cog`
+#: through the rename to avoid an unnecessary deployment-UUID rotation
+#: and a second watcher reconfiguration — only the local repo + Python
+#: package were renamed. The deployment-name string is therefore a
+#: historical artifact, not a live identifier of the repo.
 #: Both `wcs-notes` and `voice-notes` watchers point at this same
 #: deployment UUID and differ only by the `mode` parameter they pass in.
 #: Replaces the legacy `process-transcript/notes-ingest-cog` deployment
 #: (`c3a48fd5-…`) and the standalone `voicenotes-router/voicenotes`
 #: deployment (`020a34b4-…`).
-_NOTES_INGEST_ROUTER_DEPLOYMENT_ID = "e23649c2-fdfa-4702-9a47-af3662839a28"
+_TRANSCRIPTION_ROUTER_DEPLOYMENT_ID = "e23649c2-fdfa-4702-9a47-af3662839a28"
 
 
 def get_watchers() -> list[WatcherConfig]:
@@ -75,9 +82,9 @@ def get_watchers() -> list[WatcherConfig]:
         WatcherConfig(
             name="wcs-notes",
             folder_id=_require("NOTES_INPUT_FOLDER_ID"),
-            deployment_id=_NOTES_INGEST_ROUTER_DEPLOYMENT_ID,
+            deployment_id=_TRANSCRIPTION_ROUTER_DEPLOYMENT_ID,
             interval_min=1,
-            # Required: the merged notes-ingest-cog router has no
+            # Required: the transcription-cog router has no
             # default mode — every trigger must specify which
             # sub-pipeline to run, and the router raises ValueError
             # otherwise.
@@ -88,7 +95,7 @@ def get_watchers() -> list[WatcherConfig]:
             # Same env var the voicenotes sub-pipeline reads, so the
             # Doppler config holds one folder-ID value, not two.
             folder_id=_require("GOOGLE_DRIVE_VOICE_INBOX_FOLDER_ID"),
-            deployment_id=_NOTES_INGEST_ROUTER_DEPLOYMENT_ID,
+            deployment_id=_TRANSCRIPTION_ROUTER_DEPLOYMENT_ID,
             interval_min=1,
             # The voicenotes ingest flow runs cleanup inline at the
             # end of every cycle, so this single mode covers both
