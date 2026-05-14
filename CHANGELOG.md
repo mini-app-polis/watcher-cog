@@ -1,3 +1,10 @@
+## [1.10.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.10.0...v1.10.1) (2026-05-14)
+
+
+### Bug Fixes
+
+* deployment id ([d49bf44](https://github.com/mini-app-polis/watcher-cog/commit/d49bf44929d827d2dd57e726aec9eef7e6755403))
+
 # [1.10.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.9.1...v1.10.0) (2026-05-14)
 
 
