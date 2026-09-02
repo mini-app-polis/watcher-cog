@@ -1,3 +1,10 @@
+## [1.10.2](https://github.com/mini-app-polis/watcher-cog/compare/v1.10.1...v1.10.2) (2026-09-02)
+
+
+### Bug Fixes
+
+* **deps:** pin common-python-utils v3.2.0 exactly ([946a782](https://github.com/mini-app-polis/watcher-cog/commit/946a782b241ec9c66b8e63847de3a3b56d8eb0e4))
+
 ## [1.10.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.10.0...v1.10.1) (2026-05-14)
 
 
