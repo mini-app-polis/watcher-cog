@@ -1,3 +1,15 @@
+# [1.11.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.10.3...v1.11.0) (2026-09-03)
+
+
+### Bug Fixes
+
+* **deps:** refresh the lock to clear the audit findings ([dbc9ed1](https://github.com/mini-app-polis/watcher-cog/commit/dbc9ed108c9e116e341fa4a6a031fcb9dedafc18))
+
+
+### Features
+
+* **security:** call the shared security workflow ([835df37](https://github.com/mini-app-polis/watcher-cog/commit/835df37da6d57d970a8717da107b712deec8a8c5))
+
 ## [1.10.3](https://github.com/mini-app-polis/watcher-cog/compare/v1.10.2...v1.10.3) (2026-09-02)
 
 
