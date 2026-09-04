@@ -1,3 +1,10 @@
+# [1.12.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.11.0...v1.12.0) (2026-09-04)
+
+
+### Features
+
+* **deploy:** version-control the restart policy ([c082917](https://github.com/mini-app-polis/watcher-cog/commit/c082917d2d818015dd32012e64a931d82329ac36))
+
 # [1.11.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.10.3...v1.11.0) (2026-09-03)
 
 
