@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.12.0...v1.13.0) (2026-09-04)
+
+
+### Features
+
+* **deploy:** declare resource ceilings (placeholder values) ([19801b5](https://github.com/mini-app-polis/watcher-cog/commit/19801b5c3373b96c5f90bd5f4f9283f388d40ab2))
+
 # [1.12.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.11.0...v1.12.0) (2026-09-04)
 
 
