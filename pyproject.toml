@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "httpx",
-    "common-python-utils",
+    "miniapppolis-common-utils>=5.0,<6",
     "prefect",
     "python-dotenv",
     "sentry-sdk",
@@ -21,9 +21,6 @@ dev = [
     "respx",
     "ruff",
 ]
-
-[tool.uv.sources]
-common-python-utils = { git = "https://github.com/mini-app-polis/common-python-utils.git", rev = "v4.0.0" }
 
 [build-system]
 requires = ["hatchling"]
