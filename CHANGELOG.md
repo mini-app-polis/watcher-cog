@@ -1,3 +1,10 @@
+## [1.14.2](https://github.com/mini-app-polis/watcher-cog/compare/v1.14.1...v1.14.2) (2026-09-05)
+
+
+### Bug Fixes
+
+* **deps:** consume miniapppolis-common-utils from PyPI ([6a51e37](https://github.com/mini-app-polis/watcher-cog/commit/6a51e37be842550f1f8a582cde19780821ba2108))
+
 ## [1.14.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.14.0...v1.14.1) (2026-09-05)
 
 
