@@ -1,3 +1,10 @@
+## [1.14.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.14.0...v1.14.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* **git:** never three-way merge a lockfile ([162aa6c](https://github.com/mini-app-polis/watcher-cog/commit/162aa6c7af5995e7fa0d14d8db2846875a50add8))
+
 # [1.14.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.13.0...v1.14.0) (2026-09-04)
 
 
