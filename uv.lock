@@ -2980,7 +2980,6 @@ wheels = [
 
 [[package]]
 name = "watcher-cog"
-version = "1.14.2"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },

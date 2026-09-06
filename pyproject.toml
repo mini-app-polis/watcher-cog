@@ -1,6 +1,6 @@
 [project]
 name = "watcher-cog"
-version = "1.14.2"
+dynamic = ["version"]
 description = "Google Drive watcher worker that triggers Prefect deployments."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -37,6 +37,9 @@ select = ["E", "F", "I", "B", "UP", "ASYNC", "ANN"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.hatch.version]
+path = "src/watcher_cog/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/watcher_cog"]
