@@ -1,3 +1,10 @@
+## [1.14.3](https://github.com/mini-app-polis/watcher-cog/compare/v1.14.2...v1.14.3) (2026-09-06)
+
+
+### Bug Fixes
+
+* **release:** source the version from a committed file instead of pyproject.toml ([ebfbb43](https://github.com/mini-app-polis/watcher-cog/commit/ebfbb435a099d1ee66b42be79fd32ba67a05cba4))
+
 ## [1.14.2](https://github.com/mini-app-polis/watcher-cog/compare/v1.14.1...v1.14.2) (2026-09-05)
 
 
