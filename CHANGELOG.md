@@ -1,3 +1,10 @@
+## [1.14.5](https://github.com/mini-app-polis/watcher-cog/compare/v1.14.4...v1.14.5) (2026-09-07)
+
+
+### Bug Fixes
+
+* remove uv.lock from release (PY-017) ([fe51b73](https://github.com/mini-app-polis/watcher-cog/commit/fe51b73dca6bb5a184666278d39699a982f4ab13))
+
 ## [1.14.4](https://github.com/mini-app-polis/watcher-cog/compare/v1.14.3...v1.14.4) (2026-09-07)
 
 
