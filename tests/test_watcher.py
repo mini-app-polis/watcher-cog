@@ -237,3 +237,152 @@ def test_watcher_config_default_values() -> None:
     assert config.activity_file_id is None
     assert config.activity_threshold_min == 10
     assert config.parameters == {}
+
+
+# ---------------------------------------------------------------------------
+# Reporting
+# ---------------------------------------------------------------------------
+#
+# What this cog reports is deliberately narrow: the moment a trigger fires
+# (work entering the pipeline, which nothing else outside Prefect records),
+# and the moment polling breaks. Everything else is the steady state.
+
+
+def _patch_report(monkeypatch: pytest.MonkeyPatch) -> list[tuple]:
+    """Capture (severity, text, notable) for every report the loop makes."""
+    sent: list[tuple] = []
+
+    async def _fake_report(config, severity, text, *, notable=False) -> None:  # noqa: ANN001
+        sent.append((severity, text, notable))
+
+    monkeypatch.setattr(watcher_module, "_report", _fake_report)
+    return sent
+
+
+@pytest.mark.asyncio
+async def test_trigger_fired_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    folders = [[_file("a")], [_file("a"), _file("b")]]
+    monkeypatch.setattr(
+        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
+    )
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", AsyncMock())
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, []))
+    sent = _patch_report(monkeypatch)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    assert len(sent) == 1
+    severity, text, notable = sent[0]
+    assert severity == "SUCCESS"
+    assert notable is True
+    assert "1 new" in text
+
+
+@pytest.mark.asyncio
+async def test_quiet_poll_reports_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The steady state says nothing at all."""
+    folders = [[_file("a")], [_file("a")]]
+    monkeypatch.setattr(
+        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
+    )
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", AsyncMock())
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, []))
+    sent = _patch_report(monkeypatch)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    assert sent == []
+
+
+@pytest.mark.asyncio
+async def test_only_the_first_failure_of_a_streak_is_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A Drive outage is one message, not one per minute.
+
+    This is the property that decides whether the channel is still worth
+    reading during an incident.
+    """
+
+    def _boom(_: str) -> list:
+        raise RuntimeError("drive is down")
+
+    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _boom)
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", AsyncMock())
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(4, []))
+    sent = _patch_report(monkeypatch)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    assert len(sent) == 1
+    assert sent[0][0] == "ERROR"
+    assert "drive is down" in sent[0][1]
+
+
+@pytest.mark.asyncio
+async def test_recovery_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The other half of the streak: you are told when it comes back."""
+    calls = {"n": 0}
+
+    def _flaky(_: str) -> list:
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            raise RuntimeError("drive is down")
+        return [_file("a")]
+
+    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _flaky)
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", AsyncMock())
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
+    sent = _patch_report(monkeypatch)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    assert [s[0] for s in sent] == ["ERROR", "SUCCESS"]
+    assert "recovered after 2" in sent[1][1]
+
+
+@pytest.mark.asyncio
+async def test_report_never_breaks_the_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reporting is the least important thing this cog does."""
+    folders = [[_file("a")], [_file("a"), _file("b")]]
+    monkeypatch.setattr(
+        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
+    )
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", AsyncMock())
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    sleep_calls: list[float] = []
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, sleep_calls))
+
+    def _explode(*args, **kwargs) -> None:  # noqa: ANN002, ANN003
+        raise RuntimeError("notify exploded")
+
+    monkeypatch.setattr(watcher_module, "post_run_finding", _explode)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    # The loop completed both cycles despite reporting blowing up.
+    assert len(sleep_calls) == 2
