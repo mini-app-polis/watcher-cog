@@ -1,3 +1,10 @@
+# [1.15.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.14.5...v1.15.0) (2026-09-08)
+
+
+### Features
+
+* utilizing common and notification at the cog level ([14bb326](https://github.com/mini-app-polis/watcher-cog/commit/14bb326574fb3d718f0648125dd1043987ad100d))
+
 ## [1.14.5](https://github.com/mini-app-polis/watcher-cog/compare/v1.14.4...v1.14.5) (2026-09-07)
 
 
