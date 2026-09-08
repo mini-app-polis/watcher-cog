@@ -1,3 +1,10 @@
+## [1.15.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.15.0...v1.15.1) (2026-09-08)
+
+
+### Bug Fixes
+
+* dependency ([48e469c](https://github.com/mini-app-polis/watcher-cog/commit/48e469cd735ad35aadd4b5b0da4e1395225bc5fb))
+
 # [1.15.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.14.5...v1.15.0) (2026-09-08)
 
 
