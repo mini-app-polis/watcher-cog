@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from mini_app_polis.pipeline_status import post_run_finding
 
@@ -72,6 +72,57 @@ async def _report(
     return bool(result.sent or result.suppressed)
 
 
+def _baseline_concern(
+    config: WatcherConfig, files: list, started_at: datetime
+) -> str | None:
+    """What, if anything, is worrying about this folder's opening state.
+
+    Two folder shapes, two questions.
+
+    A drained inbox should be empty when nothing is pending, so anything
+    in it at startup is work that will now never trigger — worth saying
+    however old it is.
+
+    A folder that is never drained is always full, so its size says
+    nothing at all. What still says something is a file modified shortly
+    before this process started: plausibly during the downtime, and
+    therefore plausibly a change that will never fire. Everything older
+    than that was already handled by the run that preceded the restart.
+    """
+    if not files:
+        return None
+
+    if config.drained_by_downstream:
+        return (
+            f"Baselined {len(files)} pending file(s) in {config.folder_id} "
+            "on start — these will not trigger. Anything that arrived "
+            "while this cog was down is among them."
+        )
+
+    cutoff = started_at - timedelta(minutes=config.baseline_recent_change_min)
+    recent = []
+    for f in files:
+        mod = getattr(f, "modified_time", None)
+        if not mod:
+            continue
+        try:
+            ts = datetime.fromisoformat(str(mod).replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            continue
+        if ts >= cutoff:
+            recent.append(getattr(f, "name", None) or getattr(f, "id", "?"))
+
+    if not recent:
+        return None
+    named = ", ".join(str(n) for n in recent[:3])
+    more = f", +{len(recent) - 3} more" if len(recent) > 3 else ""
+    return (
+        f"Baselined {len(recent)} file(s) in {config.folder_id} modified in "
+        f"the {config.baseline_recent_change_min} minutes before start — "
+        f"those changes will not trigger: {named}{more}"
+    )
+
+
 async def run_watcher(config: WatcherConfig) -> None:
     """Run a single folder watcher loop forever."""
     # Track file_id -> modified_time string so we detect both new files
@@ -87,6 +138,10 @@ async def run_watcher(config: WatcherConfig) -> None:
     #: Which subsystem the current streak is failing in, so a change of
     #: cause breaks through the suppression above.
     error_kind: str | None = None
+    #: When this loop started, which is the only reference point a
+    #: restart has for "modified during the downtime" — nothing is
+    #: persisted across restarts.
+    started_at = datetime.now(UTC)
 
     while True:
         current_interval = config.interval_min
@@ -107,26 +162,15 @@ async def run_watcher(config: WatcherConfig) -> None:
                 seen = current
                 initialized = True
                 log.info("[%s] initialised with %s file(s)", config.name, len(seen))
-                if current:
-                    # These will never fire a trigger — they are the
-                    # baseline, by definition. On a first-ever start that
-                    # is correct. On a restart it means anything that
-                    # landed during the redeploy is now invisible, and
-                    # downstream archives files out of this folder, so
-                    # "invisible" means "unprocessed". Said out loud
-                    # because it is indistinguishable from correct from
-                    # in here, and entirely distinguishable from outside.
-                    await _report(
-                        config,
-                        "WARN",
-                        (
-                            f"Baselined {len(current)} existing file(s) in "
-                            f"{config.folder_id} on start — these will not "
-                            "trigger. Anything that arrived while this cog "
-                            "was down is among them."
-                        ),
-                        notable=True,
-                    )
+                concern = _baseline_concern(config, files, started_at)
+                if concern:
+                    # Whatever is in the folder now is the baseline and
+                    # will never fire a trigger. That is correct on a
+                    # first-ever start and a swallowed backlog on a
+                    # restart, and from in here the two are identical —
+                    # so the folder's own shape has to decide whether it
+                    # is worth saying.
+                    await _report(config, "WARN", concern, notable=True)
             else:
                 new_files = [fid for fid in current if fid not in seen]
                 modified_files = [

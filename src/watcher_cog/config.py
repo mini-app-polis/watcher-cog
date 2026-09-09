@@ -18,6 +18,24 @@ class WatcherConfig:
     activity_signal: str = "none"
     activity_file_id: str | None = None
     activity_threshold_min: int = 10
+    #: Whether downstream empties this folder. True for an input folder
+    #: whose files are archived away once processed — anything sitting in
+    #: it at startup is pending work that the baseline will swallow, so
+    #: it is worth saying so. False for a folder that simply holds files
+    #: and always will: live-history watches a folder of nineteen sheets
+    #: that are modified in place and never removed, where "there are
+    #: files here at startup" is the steady state and a warning about it
+    #: is only training you to ignore warnings.
+    #:
+    #: Defaults True because every watcher but one is a drained inbox,
+    #: and a new watcher that is wrong in this direction is merely noisy
+    #: rather than silent.
+    drained_by_downstream: bool = True
+    #: For a folder that is *not* drained, "non-empty" says nothing. What
+    #: does say something is a file modified shortly before this process
+    #: started — plausibly during the downtime, and therefore plausibly a
+    #: change that will never fire. Minutes.
+    baseline_recent_change_min: int = 15
     parameters: dict[str, object] = field(default_factory=dict)
     """Optional flow-run parameters merged into the deployment trigger.
 
@@ -77,6 +95,11 @@ def get_watchers() -> list[WatcherConfig]:
             folder_id="1HGxEr5ocY9JLtXcJqDRIOD95rXU6QLUW",
             deployment_id=_DEEJAY_ROUTER_DEPLOYMENT_ID,
             interval_min=1,
+            # This folder holds the live-history sheets themselves. They
+            # are modified in place and nothing removes them, so it is
+            # never empty and a plain "N files present" baseline warning
+            # would fire on every single restart forever.
+            drained_by_downstream=False,
             parameters={"mode": "ingest-live-history"},
         ),
         WatcherConfig(

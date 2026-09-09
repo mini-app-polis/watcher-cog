@@ -10,17 +10,29 @@ import pytest
 
 import watcher_cog.watcher as watcher_module
 from watcher_cog.config import WatcherConfig
-from watcher_cog.watcher import run_watcher
+from watcher_cog.watcher import _baseline_concern, run_watcher
 
 
 class LoopExit(Exception):
     pass
 
 
-def _file(file_id: str) -> SimpleNamespace:
+def _file(file_id: str = "f", *, modified_time: str | None = None) -> SimpleNamespace:
     return SimpleNamespace(
-        id=file_id, name=f"{file_id}.txt", mime_type=None, modified_time=None
+        id=file_id, name=f"{file_id}.txt", mime_type=None, modified_time=modified_time
     )
+
+
+def _cfg(**kwargs: object) -> WatcherConfig:
+    return WatcherConfig(name="w", folder_id="folder", deployment_id="dep", **kwargs)  # type: ignore[arg-type]
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _iso(dt: datetime) -> str:
+    return dt.isoformat().replace("+00:00", "Z")
 
 
 def _make_sleep(
@@ -224,6 +236,8 @@ def test_watcher_config_dataclass_field_set() -> None:
         "activity_signal",
         "activity_file_id",
         "activity_threshold_min",
+        "drained_by_downstream",
+        "baseline_recent_change_min",
         "parameters",
     }
 
@@ -239,6 +253,8 @@ def test_watcher_config_default_values() -> None:
     assert config.activity_signal == "none"
     assert config.activity_file_id is None
     assert config.activity_threshold_min == 10
+    assert config.drained_by_downstream is True
+    assert config.baseline_recent_change_min == 15
     assert config.parameters == {}
 
 
@@ -554,7 +570,7 @@ async def test_baselining_a_non_empty_folder_is_reported(
     severity, text, notable = sent[0]
     assert severity == "WARN"
     assert notable is True
-    assert "Baselined 2 existing file(s)" in text
+    assert "Baselined 2 pending file(s)" in text
     assert "folder" in text
 
 
@@ -576,6 +592,27 @@ async def test_an_empty_folder_on_start_is_not_reported(
         await run_watcher(config)
 
     assert sent == []
+
+
+def test_drained_folder_warns_about_any_pending_file() -> None:
+    concern = _baseline_concern(_cfg(drained_by_downstream=True), [_file()], _now())
+    assert concern is not None
+
+
+def test_undrained_folder_is_silent_about_old_files() -> None:
+    """live-history's nineteen sheets are the steady state, not a backlog."""
+    old = _file(modified_time="2026-01-01T00:00:00Z")
+    assert _baseline_concern(_cfg(drained_by_downstream=False), [old], _now()) is None
+
+
+def test_undrained_folder_warns_about_a_recent_change() -> None:
+    """A sheet edited during the redeploy is a change that will not fire."""
+    recent = _file(modified_time=_iso(_now() - timedelta(minutes=2)))
+    assert _baseline_concern(_cfg(drained_by_downstream=False), [recent], _now())
+
+
+def test_empty_folder_is_always_silent() -> None:
+    assert _baseline_concern(_cfg(), [], _now()) is None
 
 
 @pytest.mark.asyncio

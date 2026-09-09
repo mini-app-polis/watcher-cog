@@ -38,9 +38,19 @@ def _get_google_api() -> GoogleAPI:
 
 
 def list_folder(folder_id: str) -> list[DriveFile]:
-    """Return all files in a Drive folder."""
+    """Return the files — not the subfolders — in a Drive folder.
+
+    ``get_files_in_folder`` defaults to ``include_folders=True`` and this
+    was the only caller in the fleet not passing False. A subfolder's
+    modifiedTime changes whenever anything is moved into or out of it,
+    and the downstream cogs archive processed files into exactly these
+    subfolders — so every completed file changed the parent listing, the
+    poll below read it as a modified file, and the deployment fired
+    again. One spurious run per archived file, on every watcher whose
+    folder has a processed/ subfolder inside it.
+    """
     g = _get_google_api()
-    return g.drive.get_files_in_folder(folder_id)
+    return g.drive.get_files_in_folder(folder_id, include_folders=False)
 
 
 def get_file_modified_time(file_id: str) -> datetime | None:
