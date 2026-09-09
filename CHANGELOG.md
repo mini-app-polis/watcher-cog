@@ -1,3 +1,10 @@
+## [1.15.5](https://github.com/mini-app-polis/watcher-cog/compare/v1.15.4...v1.15.5) (2026-09-09)
+
+
+### Bug Fixes
+
+* **watcher:** exclude subfolders from polling and scope the baseline warning ([9b303c4](https://github.com/mini-app-polis/watcher-cog/commit/9b303c4591ff1c126d180c731c76d3c9c8f49bc0))
+
 ## [1.15.4](https://github.com/mini-app-polis/watcher-cog/compare/v1.15.3...v1.15.4) (2026-09-09)
 
 
