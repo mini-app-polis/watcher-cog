@@ -1,3 +1,10 @@
+## [1.15.3](https://github.com/mini-app-polis/watcher-cog/compare/v1.15.2...v1.15.3) (2026-09-09)
+
+
+### Bug Fixes
+
+* **watcher:** report a failed trigger separately from a failed poll ([1a4b9c6](https://github.com/mini-app-polis/watcher-cog/commit/1a4b9c6b4588ad96d009d5b50e38bbb35cb4a637))
+
 ## [1.15.2](https://github.com/mini-app-polis/watcher-cog/compare/v1.15.1...v1.15.2) (2026-09-08)
 
 
