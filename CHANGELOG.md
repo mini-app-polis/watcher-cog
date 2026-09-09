@@ -1,3 +1,10 @@
+## [1.15.6](https://github.com/mini-app-polis/watcher-cog/compare/v1.15.5...v1.15.6) (2026-09-09)
+
+
+### Bug Fixes
+
+* **watcher:** scope supervision to real crashes and suppress per cause ([4c8a6c7](https://github.com/mini-app-polis/watcher-cog/commit/4c8a6c792f0f64f457507ee0297311b03cfe51c2))
+
 ## [1.15.5](https://github.com/mini-app-polis/watcher-cog/compare/v1.15.4...v1.15.5) (2026-09-09)
 
 
