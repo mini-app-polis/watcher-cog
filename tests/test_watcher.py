@@ -311,7 +311,8 @@ async def test_only_the_first_failure_of_a_streak_is_reported(
     """A Drive outage is one message, not one per minute.
 
     This is the property that decides whether the channel is still worth
-    reading during an incident.
+    reading during an incident. Suppression is per cause, so this covers
+    repeats of a poll failure specifically.
     """
 
     def _boom(_: str) -> list:
@@ -359,6 +360,114 @@ async def test_recovery_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert [s[0] for s in sent] == ["ERROR", "SUCCESS"]
     assert "recovered after 2" in sent[1][1]
+
+
+@pytest.mark.asyncio
+async def test_trigger_failure_names_the_deployment_not_the_folder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A run that never started is not a poll that never read."""
+    folders = [[_file("a")], [_file("a"), _file("b")]]
+    monkeypatch.setattr(
+        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
+    )
+
+    async def _boom(deployment_id, parameters=None) -> None:  # noqa: ANN001
+        raise RuntimeError("prefect unreachable")
+
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", _boom)
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, []))
+    sent = _patch_report(monkeypatch)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    assert len(sent) == 1
+    severity, text, _notable = sent[0]
+    assert severity == "ERROR"
+    assert "Trigger failed" in text
+    assert "dep" in text
+    assert "prefect unreachable" in text
+    assert "Poll failed" not in text
+
+
+@pytest.mark.asyncio
+async def test_a_new_cause_breaks_through_the_streak(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A Drive outage already reported must not silence a trigger failure."""
+    calls = {"n": 0}
+
+    def _list_folder(_: str) -> list:
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("drive is down")
+        if calls["n"] == 1:
+            return [_file("a")]
+        return [_file("a"), _file("b")]
+
+    async def _boom(deployment_id, parameters=None) -> None:  # noqa: ANN001
+        raise RuntimeError("prefect unreachable")
+
+    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _list_folder)
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", _boom)
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
+    sent = _patch_report(monkeypatch)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    texts = [text for _sev, text, _notable in sent]
+    assert any("Poll failed" in t for t in texts)
+    assert any("Trigger failed" in t for t in texts)
+
+
+@pytest.mark.asyncio
+async def test_repeats_of_the_same_cause_stay_suppressed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Three failing triggers in a row are still one message.
+
+    The poll side of this is covered above; this is the same property on
+    the branch that did not exist before. It also pins the retry: ``seen``
+    is not advanced on a failed trigger, so every cycle sees the same new
+    file and tries to fire again.
+    """
+    calls = {"n": 0}
+    fired = {"n": 0}
+
+    def _list_folder(_: str) -> list:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return [_file("a")]
+        return [_file("a"), _file("b")]
+
+    async def _boom(deployment_id, parameters=None) -> None:  # noqa: ANN001
+        fired["n"] += 1
+        raise RuntimeError("prefect unreachable")
+
+    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _list_folder)
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", _boom)
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(4, []))
+    sent = _patch_report(monkeypatch)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    assert fired["n"] == 3
+    assert sum(1 for _sev, t, _notable in sent if "Trigger failed" in t) == 1
 
 
 @pytest.mark.asyncio

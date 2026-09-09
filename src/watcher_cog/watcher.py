@@ -21,6 +21,18 @@ REPO = "watcher-cog"
 SOURCE = "watcher_loop"
 
 
+class _TriggerFailed(Exception):
+    """Drive answered; Prefect would not take the work.
+
+    Raised only to carry that distinction out to the one handler at the
+    bottom of the loop, which otherwise cannot tell a Drive fault from a
+    Prefect one and calls both a failed poll. The two need different
+    messages because they need different fixes, and because a trigger
+    that did not fire means files arrived and no run started — the one
+    outcome this cog exists to prevent.
+    """
+
+
 async def _report(
     config: WatcherConfig,
     severity: str,
@@ -62,6 +74,9 @@ async def run_watcher(config: WatcherConfig) -> None:
     # identical messages an hour, which is how a channel gets muted right
     # before it matters.
     error_streak = 0
+    #: Which subsystem the current streak is failing in, so a change of
+    #: cause breaks through the suppression above.
+    error_kind: str | None = None
 
     while True:
         current_interval = config.interval_min
@@ -91,10 +106,13 @@ async def run_watcher(config: WatcherConfig) -> None:
                 ]
 
                 if new_files or modified_files:
-                    await prefect_trigger.fire(
-                        config.deployment_id,
-                        parameters=config.parameters,
-                    )
+                    try:
+                        await prefect_trigger.fire(
+                            config.deployment_id,
+                            parameters=config.parameters,
+                        )
+                    except Exception as exc:
+                        raise _TriggerFailed(f"{type(exc).__name__}: {exc}") from exc
                     seen = current
                     log.info(
                         "[%s] %s new, %s modified — trigger fired",
@@ -124,6 +142,7 @@ async def run_watcher(config: WatcherConfig) -> None:
             if error_streak:
                 recovered_after = error_streak
                 error_streak = 0
+                error_kind = None
                 await _report(
                     config,
                     "SUCCESS",
@@ -132,19 +151,34 @@ async def run_watcher(config: WatcherConfig) -> None:
                 )
 
         except Exception as exc:
-            log.error("[%s] poll error: %s", config.name, exc, exc_info=True)
+            kind = "trigger" if isinstance(exc, _TriggerFailed) else "poll"
+            log.error("[%s] %s error: %s", config.name, kind, exc, exc_info=True)
+
+            # Report the first failure of each *cause*, not merely the
+            # first failure of a streak. Sixty identical Drive timeouts
+            # still produce one message; a trigger that starts failing
+            # during a Drive outage is a new fact and gets its own.
+            first_of_kind = error_streak == 0 or kind != error_kind
             error_streak += 1
-            if error_streak == 1:
-                await _report(
-                    config,
-                    "ERROR",
-                    (
+            error_kind = kind
+
+            if first_of_kind:
+                if kind == "trigger":
+                    text = (
+                        f"Trigger failed for deployment {config.deployment_id}: "
+                        f"{exc}. Drive changes were seen and no run was "
+                        "started; the next cycle will retry the same files. "
+                        "Further failures of this kind are logged but not "
+                        "repeated here."
+                    )
+                else:
+                    text = (
                         f"Poll failed for folder {config.folder_id}: "
                         f"{type(exc).__name__}: {exc}. "
-                        "Further failures are logged but not repeated here "
-                        "until it recovers."
-                    ),
-                )
+                        "Further failures of this kind are logged but not "
+                        "repeated here."
+                    )
+                await _report(config, "ERROR", text)
         finally:
             await heartbeat.ping()
 
