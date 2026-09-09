@@ -136,7 +136,10 @@ async def test_poll_error_caught_and_loop_continues(
 
     assert _list_folder.calls == 2
     logger.error.assert_called_once()
-    assert ping.await_count == 2
+    # One ping, not two: the failed cycle did no work, and Healthchecks
+    # fires on absence, so a ping from a cycle that raised would keep the
+    # check green through an outage.
+    assert ping.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -248,12 +251,21 @@ def test_watcher_config_default_values() -> None:
 # and the moment polling breaks. Everything else is the steady state.
 
 
-def _patch_report(monkeypatch: pytest.MonkeyPatch) -> list[tuple]:
-    """Capture (severity, text, notable) for every report the loop makes."""
+def _patch_report(
+    monkeypatch: pytest.MonkeyPatch, *, lands: bool = True
+) -> list[tuple]:
+    """Capture (severity, text, notable) for every report the loop makes.
+
+    The double returns a bool because the real ``_report`` does, and the
+    loop's failure suppression turns on that value. A double returning
+    ``None`` would put every test on the undelivered path by accident.
+    Pass ``lands=False`` to exercise that path deliberately.
+    """
     sent: list[tuple] = []
 
-    async def _fake_report(config, severity, text, *, notable=False) -> None:  # noqa: ANN001
+    async def _fake_report(config, severity, text, *, notable=False) -> bool:  # noqa: ANN001
         sent.append((severity, text, notable))
+        return lands
 
     monkeypatch.setattr(watcher_module, "_report", _fake_report)
     return sent
@@ -261,7 +273,9 @@ def _patch_report(monkeypatch: pytest.MonkeyPatch) -> list[tuple]:
 
 @pytest.mark.asyncio
 async def test_trigger_fired_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
-    folders = [[_file("a")], [_file("a"), _file("b")]]
+    # First cycle sees an empty folder so there is no baseline report to
+    # separate from the one under test.
+    folders = [[], [_file("b")]]
     monkeypatch.setattr(
         watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
     )
@@ -285,7 +299,11 @@ async def test_trigger_fired_is_reported(monkeypatch: pytest.MonkeyPatch) -> Non
 
 @pytest.mark.asyncio
 async def test_quiet_poll_reports_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The steady state says nothing at all."""
+    """The steady state says nothing at all.
+
+    Cycle 1 baselines the existing file and says so; cycle 2 is the quiet
+    poll and must add nothing to that.
+    """
     folders = [[_file("a")], [_file("a")]]
     monkeypatch.setattr(
         watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
@@ -301,7 +319,8 @@ async def test_quiet_poll_reports_nothing(monkeypatch: pytest.MonkeyPatch) -> No
     with pytest.raises(LoopExit):
         await run_watcher(config)
 
-    assert sent == []
+    assert [s[0] for s in sent] == ["WARN"]
+    assert "Baselined" in sent[0][1]
 
 
 @pytest.mark.asyncio
@@ -358,8 +377,11 @@ async def test_recovery_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(LoopExit):
         await run_watcher(config)
 
-    assert [s[0] for s in sent] == ["ERROR", "SUCCESS"]
-    assert "recovered after 2" in sent[1][1]
+    # The third cycle is also the first that reached Drive, so it
+    # baselines the folder before reporting the recovery.
+    assert [s[0] for s in sent] == ["ERROR", "WARN", "SUCCESS"]
+    assert "Baselined" in sent[1][1]
+    assert "recovered after 2" in sent[2][1]
 
 
 @pytest.mark.asyncio
@@ -367,7 +389,7 @@ async def test_trigger_failure_names_the_deployment_not_the_folder(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A run that never started is not a poll that never read."""
-    folders = [[_file("a")], [_file("a"), _file("b")]]
+    folders = [[], [_file("b")]]
     monkeypatch.setattr(
         watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
     )
@@ -447,8 +469,8 @@ async def test_repeats_of_the_same_cause_stay_suppressed(
     def _list_folder(_: str) -> list:
         calls["n"] += 1
         if calls["n"] == 1:
-            return [_file("a")]
-        return [_file("a"), _file("b")]
+            return []
+        return [_file("b")]
 
     async def _boom(deployment_id, parameters=None) -> None:  # noqa: ANN001
         fired["n"] += 1
@@ -468,6 +490,176 @@ async def test_repeats_of_the_same_cause_stay_suppressed(
 
     assert fired["n"] == 3
     assert sum(1 for _sev, t, _notable in sent if "Trigger failed" in t) == 1
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_is_not_pinged_on_a_failed_cycle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cycle that raised did no work, and Healthchecks must not hear otherwise.
+
+    The ping used to be in a `finally`, so it fired on every cycle
+    including the ones that raised. Expired credentials could keep the
+    check green indefinitely while the folder went unwatched — the
+    absence detector reporting that the loop is spinning, not that it is
+    working.
+    """
+
+    def _boom(_: str) -> list:
+        raise RuntimeError("drive is down")
+
+    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _boom)
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", AsyncMock())
+    ping = AsyncMock()
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", ping)
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
+    _patch_report(monkeypatch)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    assert ping.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_baselining_a_non_empty_folder_is_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A restart that swallows pending files says so.
+
+    Files present on the first poll are the baseline and will never fire
+    a trigger. On a first-ever start that is correct; on a restart it
+    means anything that landed during the redeploy is invisible, and
+    downstream archives files out of this folder, so invisible means
+    unprocessed.
+    """
+    monkeypatch.setattr(
+        watcher_module.drive_client, "list_folder", lambda _: [_file("a"), _file("b")]
+    )
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", AsyncMock())
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(1, []))
+    sent = _patch_report(monkeypatch)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    assert len(sent) == 1
+    severity, text, notable = sent[0]
+    assert severity == "WARN"
+    assert notable is True
+    assert "Baselined 2 existing file(s)" in text
+    assert "folder" in text
+
+
+@pytest.mark.asyncio
+async def test_an_empty_folder_on_start_is_not_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nothing was swallowed, so there is nothing to say."""
+    monkeypatch.setattr(watcher_module.drive_client, "list_folder", lambda _: [])
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", AsyncMock())
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(1, []))
+    sent = _patch_report(monkeypatch)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    assert sent == []
+
+
+@pytest.mark.asyncio
+async def test_undelivered_error_does_not_consume_the_suppression_slot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """_report returning False leaves error_kind unset, so the next cycle retries.
+
+    An outage that takes down Drive and the API together used to be
+    completely silent: cycle 1's ERROR was swallowed by _report while the
+    streak advanced anyway, so every later cycle suppressed itself as a
+    repeat of a message nobody ever saw.
+    """
+
+    def _boom(_: str) -> list:
+        raise RuntimeError("drive is down")
+
+    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _boom)
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", AsyncMock())
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
+    sent = _patch_report(monkeypatch, lands=False)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    # Three cycles, three attempts — none of them landed, so none of them
+    # earned the right to silence the next one.
+    assert len(sent) == 3
+    assert all(s[0] == "ERROR" for s in sent)
+
+
+@pytest.mark.asyncio
+async def test_a_delivered_error_does_consume_the_slot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The other half: a message that landed still suppresses its repeats."""
+
+    def _boom(_: str) -> list:
+        raise RuntimeError("drive is down")
+
+    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _boom)
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", AsyncMock())
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
+    sent = _patch_report(monkeypatch, lands=True)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    assert len(sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_report_returns_whether_the_message_landed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The loop's suppression is only as good as this return value."""
+    from mini_app_polis.pipeline_status import DeliveryReport
+
+    config = WatcherConfig(name="w1", folder_id="f", deployment_id="d")
+
+    for result, expected in (
+        (DeliveryReport(sent=1), True),
+        (DeliveryReport(suppressed=1), True),
+        (DeliveryReport(failed=1), False),
+        (DeliveryReport(skipped=1), False),
+    ):
+        monkeypatch.setattr(
+            watcher_module, "post_run_finding", lambda *a, _r=result, **k: _r
+        )
+        assert await watcher_module._report(config, "ERROR", "x") is expected
+
+    def _explode(*args, **kwargs) -> None:  # noqa: ANN002, ANN003
+        raise RuntimeError("notify exploded")
+
+    monkeypatch.setattr(watcher_module, "post_run_finding", _explode)
+    assert await watcher_module._report(config, "ERROR", "x") is False
 
 
 @pytest.mark.asyncio

@@ -39,8 +39,13 @@ async def _report(
     text: str,
     *,
     notable: bool = False,
-) -> None:
+) -> bool:
     """Report one watcher event. Never raises, never blocks the loop.
+
+    Returns whether the message actually landed. The caller needs that:
+    an ERROR that was never delivered must not consume the one report
+    this cog allows itself per failure cause, or an outage that takes
+    down both Drive and the API is completely silent.
 
     ``post_run_finding`` is synchronous and does network I/O. Called
     directly it would stall every other watcher sharing this event loop
@@ -49,7 +54,7 @@ async def _report(
     inside a notification.
     """
     try:
-        await asyncio.to_thread(
+        result = await asyncio.to_thread(
             post_run_finding,
             config.name,
             severity,  # type: ignore[arg-type]
@@ -60,6 +65,11 @@ async def _report(
         )
     except Exception as exc:  # noqa: BLE001 - reporting must never break polling
         log.error("[%s] report failed: %s", config.name, exc)
+        return False
+    # sent is the only value that means a human can see this. suppressed
+    # (a SUCCESS below the notify threshold) is a decision, not a failure,
+    # and counts as landed so it does not hold a suppression slot open.
+    return bool(result.sent or result.suppressed)
 
 
 async def run_watcher(config: WatcherConfig) -> None:
@@ -97,6 +107,26 @@ async def run_watcher(config: WatcherConfig) -> None:
                 seen = current
                 initialized = True
                 log.info("[%s] initialised with %s file(s)", config.name, len(seen))
+                if current:
+                    # These will never fire a trigger — they are the
+                    # baseline, by definition. On a first-ever start that
+                    # is correct. On a restart it means anything that
+                    # landed during the redeploy is now invisible, and
+                    # downstream archives files out of this folder, so
+                    # "invisible" means "unprocessed". Said out loud
+                    # because it is indistinguishable from correct from
+                    # in here, and entirely distinguishable from outside.
+                    await _report(
+                        config,
+                        "WARN",
+                        (
+                            f"Baselined {len(current)} existing file(s) in "
+                            f"{config.folder_id} on start — these will not "
+                            "trigger. Anything that arrived while this cog "
+                            "was down is among them."
+                        ),
+                        notable=True,
+                    )
             else:
                 new_files = [fid for fid in current if fid not in seen]
                 modified_files = [
@@ -150,6 +180,14 @@ async def run_watcher(config: WatcherConfig) -> None:
                     notable=True,
                 )
 
+            # Deliberately not in a `finally`. Healthchecks fires on
+            # absence, which is only a useful alarm if the ping means
+            # "this cycle read the folder and acted on it". Pinging from
+            # a `finally` meant it also meant "this cycle raised and did
+            # nothing", so expired credentials could keep the check green
+            # indefinitely while the folder went unwatched.
+            await heartbeat.ping()
+
         except Exception as exc:
             kind = "trigger" if isinstance(exc, _TriggerFailed) else "poll"
             log.error("[%s] %s error: %s", config.name, kind, exc, exc_info=True)
@@ -160,7 +198,6 @@ async def run_watcher(config: WatcherConfig) -> None:
             # during a Drive outage is a new fact and gets its own.
             first_of_kind = error_streak == 0 or kind != error_kind
             error_streak += 1
-            error_kind = kind
 
             if first_of_kind:
                 if kind == "trigger":
@@ -178,8 +215,12 @@ async def run_watcher(config: WatcherConfig) -> None:
                         "Further failures of this kind are logged but not "
                         "repeated here."
                     )
-                await _report(config, "ERROR", text)
-        finally:
-            await heartbeat.ping()
+                # Only claim the slot if the message actually landed. A
+                # report that failed leaves error_kind unchanged, so the
+                # next cycle tries again rather than suppressing itself.
+                if await _report(config, "ERROR", text):
+                    error_kind = kind
+            else:
+                error_kind = kind
 
         await asyncio.sleep(current_interval * 60)
