@@ -135,9 +135,13 @@ async def run_watcher(config: WatcherConfig) -> None:
     # identical messages an hour, which is how a channel gets muted right
     # before it matters.
     error_streak = 0
-    #: Which subsystem the current streak is failing in, so a change of
-    #: cause breaks through the suppression above.
-    error_kind: str | None = None
+    #: Every cause already reported during the current streak. A set
+    #: rather than the last-seen value: with one slot, a streak that
+    #: alternated between two causes counted every single cycle as "a new
+    #: cause" and reported on all of them — one message a minute for the
+    #: length of the outage, which is the storm this exists to prevent.
+    #: Cleared on recovery, so the next outage speaks again.
+    reported_kinds: set[str] = set()
     #: When this loop started, which is the only reference point a
     #: restart has for "modified during the downtime" — nothing is
     #: persisted across restarts.
@@ -215,12 +219,17 @@ async def run_watcher(config: WatcherConfig) -> None:
 
             if error_streak:
                 recovered_after = error_streak
+                # Named, not assumed. A streak of trigger failures used to
+                # end with "Polling recovered", which is the wrong
+                # subsystem — the same confusion the trigger/poll split
+                # was written to remove.
+                what = " and ".join(sorted(reported_kinds)) or "polling"
                 error_streak = 0
-                error_kind = None
+                reported_kinds.clear()
                 await _report(
                     config,
                     "SUCCESS",
-                    f"Polling recovered after {recovered_after} failed cycle(s)",
+                    f"{what} recovered after {recovered_after} failed cycle(s)",
                     notable=True,
                 )
 
@@ -240,7 +249,7 @@ async def run_watcher(config: WatcherConfig) -> None:
             # first failure of a streak. Sixty identical Drive timeouts
             # still produce one message; a trigger that starts failing
             # during a Drive outage is a new fact and gets its own.
-            first_of_kind = error_streak == 0 or kind != error_kind
+            first_of_kind = kind not in reported_kinds
             error_streak += 1
 
             if first_of_kind:
@@ -259,12 +268,10 @@ async def run_watcher(config: WatcherConfig) -> None:
                         "Further failures of this kind are logged but not "
                         "repeated here."
                     )
-                # Only claim the slot if the message actually landed. A
-                # report that failed leaves error_kind unchanged, so the
-                # next cycle tries again rather than suppressing itself.
+                # Only record the cause if the message actually landed. A
+                # report that failed leaves the set unchanged, so the next
+                # cycle tries again rather than suppressing itself.
                 if await _report(config, "ERROR", text):
-                    error_kind = kind
-            else:
-                error_kind = kind
+                    reported_kinds.add(kind)
 
         await asyncio.sleep(current_interval * 60)

@@ -397,7 +397,7 @@ async def test_recovery_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
     # baselines the folder before reporting the recovery.
     assert [s[0] for s in sent] == ["ERROR", "WARN", "SUCCESS"]
     assert "Baselined" in sent[1][1]
-    assert "recovered after 2" in sent[2][1]
+    assert "poll recovered after 2" in sent[2][1]
 
 
 @pytest.mark.asyncio
@@ -619,7 +619,7 @@ def test_empty_folder_is_always_silent() -> None:
 async def test_undelivered_error_does_not_consume_the_suppression_slot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """_report returning False leaves error_kind unset, so the next cycle retries.
+    """_report returning False leaves reported_kinds unset, so the next cycle retries.
 
     An outage that takes down Drive and the API together used to be
     completely silent: cycle 1's ERROR was swallowed by _report while the
@@ -724,3 +724,147 @@ async def test_report_never_breaks_the_loop(monkeypatch: pytest.MonkeyPatch) -> 
 
     # The loop completed both cycles despite reporting blowing up.
     assert len(sleep_calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_alternating_causes_report_once_each_not_every_cycle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """poll, trigger, poll, trigger → two messages, not four.
+
+    Prefect refusing fires leaves ``seen`` unadvanced, so every successful
+    poll re-fires; with Drive also intermittently failing the cause flips
+    every minute. One slot for "last cause" treated each flip as new and
+    reported every cycle — the storm the set exists to prevent.
+    """
+    calls = {"n": 0}
+
+    def _list_folder(_: str) -> list:
+        calls["n"] += 1
+        # 1: baseline empty. Even cycles after that: Drive down.
+        # Odd cycles after that: folder has a pending file.
+        if calls["n"] == 1:
+            return []
+        if calls["n"] % 2 == 0:
+            raise RuntimeError("drive is down")
+        return [_file("b")]
+
+    async def _boom(deployment_id, parameters=None) -> None:  # noqa: ANN001
+        raise RuntimeError("prefect unreachable")
+
+    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _list_folder)
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", _boom)
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    # baseline + poll + trigger + poll + trigger
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(5, []))
+    sent = _patch_report(monkeypatch)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    errors = [t for sev, t, _ in sent if sev == "ERROR"]
+    assert len(errors) == 2
+    assert sum(1 for t in errors if "Poll failed" in t) == 1
+    assert sum(1 for t in errors if "Trigger failed" in t) == 1
+
+
+@pytest.mark.asyncio
+async def test_repeats_of_one_cause_stay_suppressed_across_a_long_streak(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sixty identical Drive timeouts are still one message."""
+
+    def _boom(_: str) -> list:
+        raise RuntimeError("drive is down")
+
+    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _boom)
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", AsyncMock())
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(60, []))
+    sent = _patch_report(monkeypatch)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    assert len(sent) == 1
+    assert sent[0][0] == "ERROR"
+    assert "drive is down" in sent[0][1]
+
+
+@pytest.mark.asyncio
+async def test_recovery_names_the_cause_that_was_failing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A trigger-only streak must not recover as "polling"."""
+    calls = {"n": 0}
+
+    def _list_folder(_: str) -> list:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return []
+        return [_file("b")]
+
+    fire_calls = {"n": 0}
+
+    async def _fire(deployment_id, parameters=None) -> None:  # noqa: ANN001
+        fire_calls["n"] += 1
+        if fire_calls["n"] <= 2:
+            raise RuntimeError("prefect unreachable")
+
+    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _list_folder)
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", _fire)
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(4, []))
+    sent = _patch_report(monkeypatch)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    recoveries = [t for sev, t, _ in sent if sev == "SUCCESS" and "recovered" in t]
+    assert len(recoveries) == 1
+    assert recoveries[0].startswith("trigger recovered")
+    assert "Polling" not in recoveries[0]
+    assert "poll " not in recoveries[0]
+
+
+@pytest.mark.asyncio
+async def test_a_new_cause_after_recovery_reports_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """reported_kinds is cleared, so the next outage is not silent."""
+    calls = {"n": 0}
+
+    def _list_folder(_: str) -> list:
+        calls["n"] += 1
+        # 1 fail, 2 ok (recover), 3 fail again
+        if calls["n"] in {1, 3}:
+            raise RuntimeError("drive is down")
+        return [_file("a")]
+
+    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _list_folder)
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", AsyncMock())
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
+    sent = _patch_report(monkeypatch)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    errors = [t for sev, t, _ in sent if sev == "ERROR"]
+    assert len(errors) == 2
+    assert all("Poll failed" in t for t in errors)
+    recoveries = [t for sev, t, _ in sent if sev == "SUCCESS" and "recovered" in t]
+    assert len(recoveries) == 1
+    assert "poll recovered" in recoveries[0]

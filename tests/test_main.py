@@ -148,6 +148,34 @@ async def test_a_failing_report_does_not_swallow_the_crash(
 
 
 @pytest.mark.asyncio
+async def test_cancellation_is_not_reported_as_a_crash(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ctrl-C must not post CRITICAL, and must not block on an HTTP call."""
+    import asyncio
+
+    import watcher_cog.watcher as watcher_module
+
+    config = WatcherConfig(name="w1", folder_id="folder-1", deployment_id="dep")
+    sent: list[tuple] = []
+
+    async def _fake_report(cfg, severity, text, *, notable=False) -> bool:  # noqa: ANN001
+        sent.append((severity, text, notable))
+        return True
+
+    async def _cancelled_watcher(_: WatcherConfig) -> None:
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(watcher_module, "_report", _fake_report)
+    monkeypatch.setattr(main_module, "run_watcher", _cancelled_watcher)
+
+    with pytest.raises(asyncio.CancelledError):
+        await main_module._supervise(config)
+
+    assert sent == []
+
+
+@pytest.mark.asyncio
 async def test_main_crash_in_one_watcher_does_not_stop_others(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

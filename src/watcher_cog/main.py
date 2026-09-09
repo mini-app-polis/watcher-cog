@@ -30,7 +30,12 @@ async def _supervise(config) -> None:  # noqa: ANN001 - WatcherConfig, kept loos
 
     try:
         await run_watcher(config)
-    except BaseException as exc:
+    # Exception, not BaseException. A watcher that genuinely dies dies of
+    # an Exception; CancelledError is how an ordinary Ctrl-C reaches this
+    # frame, and reporting it posted four CRITICALs saying the process
+    # was still running while it was in fact exiting — and blocked the
+    # shutdown on four HTTP calls to say so.
+    except Exception as exc:
         with contextlib.suppress(Exception):
             await _report(
                 config,
