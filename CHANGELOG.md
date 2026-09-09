@@ -1,3 +1,10 @@
+## [1.15.4](https://github.com/mini-app-polis/watcher-cog/compare/v1.15.3...v1.15.4) (2026-09-09)
+
+
+### Bug Fixes
+
+* **watcher:** stop reporting healthy on cycles that did no work ([3ad8ed3](https://github.com/mini-app-polis/watcher-cog/commit/3ad8ed304528193247918848ab14bf7f006eb730))
+
 ## [1.15.3](https://github.com/mini-app-polis/watcher-cog/compare/v1.15.2...v1.15.3) (2026-09-09)
 
 
