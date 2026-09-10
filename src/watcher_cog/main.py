@@ -9,6 +9,7 @@ import sys
 
 import sentry_sdk
 from dotenv import load_dotenv
+from mini_app_polis.environment import current_environment, summary
 
 from watcher_cog.config import get_watchers
 from watcher_cog.logger import log
@@ -53,7 +54,20 @@ async def _supervise(config) -> None:  # noqa: ANN001 - WatcherConfig, kept loos
 async def main() -> None:
     """Run all configured watcher tasks."""
     load_dotenv()
-    sentry_sdk.init(dsn=os.getenv("SENTRY_DSN"), environment="production")
+    # Labeled, not gated. Sentry has an environment of its own, and dev is
+    # where things are most likely to break — switching error reporting off
+    # there would turn the deploy log into the only record, and Railway
+    # scopes those to a single deployment.
+    sentry_sdk.init(
+        dsn=os.getenv("SENTRY_DSN"),
+        environment=current_environment().value,
+    )
+
+    # The environment, both gates and the resolved API base URL, in one
+    # line. This is what you read after a deploy instead of assuming: a
+    # watcher pointed at the wrong API, or firing triggers it should not,
+    # is visible here rather than in the production Discord channel.
+    log.info(summary())
 
     watchers = get_watchers()
 

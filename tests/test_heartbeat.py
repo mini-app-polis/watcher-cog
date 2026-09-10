@@ -61,3 +61,18 @@ async def test_ping_exception_logged_not_raised(
     await heartbeat.ping()
 
     logger.error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_ping_suppressed_outside_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A production ping URL copied into dev must still never be pinged."""
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.setenv("HEALTHCHECKS_URL_WATCHER", "https://hc-ping.com/abc")
+    async_client = MagicMock()
+    monkeypatch.setattr(heartbeat.httpx, "AsyncClient", async_client)
+
+    await heartbeat.ping()
+
+    async_client.assert_not_called()

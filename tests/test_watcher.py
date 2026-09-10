@@ -314,6 +314,64 @@ async def test_trigger_fired_is_reported(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 @pytest.mark.asyncio
+async def test_fired_trigger_reports_as_triggered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real fire says so — both in the log and in the finding."""
+    folders = [[], [_file("b")]]
+    monkeypatch.setattr(
+        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
+    )
+    monkeypatch.setattr(
+        watcher_module.prefect_trigger, "fire", AsyncMock(return_value="flow-run-1")
+    )
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, []))
+    logger = MagicMock()
+    monkeypatch.setattr(watcher_module, "log", logger)
+    sent = _patch_report(monkeypatch)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    assert sent[0][1].startswith("Triggered")
+    info_args = [c.args for c in logger.info.call_args_list]
+    assert any(any("trigger fired" in str(a) for a in args) for args in info_args)
+
+
+@pytest.mark.asyncio
+async def test_suppressed_trigger_reports_as_would_trigger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A suppressed fire must not be described as a fire."""
+    folders = [[], [_file("b")]]
+    monkeypatch.setattr(
+        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
+    )
+    monkeypatch.setattr(
+        watcher_module.prefect_trigger, "fire", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, []))
+    logger = MagicMock()
+    monkeypatch.setattr(watcher_module, "log", logger)
+    sent = _patch_report(monkeypatch)
+
+    config = WatcherConfig(
+        name="w1", folder_id="folder", deployment_id="dep", interval_min=1
+    )
+    with pytest.raises(LoopExit):
+        await run_watcher(config)
+
+    assert sent[0][1].startswith("Would trigger")
+    info_args = [c.args for c in logger.info.call_args_list]
+    assert any(any("trigger suppressed" in str(a) for a in args) for args in info_args)
+
+
+@pytest.mark.asyncio
 async def test_quiet_poll_reports_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
     """The steady state says nothing at all.
 

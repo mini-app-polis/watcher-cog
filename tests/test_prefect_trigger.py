@@ -70,3 +70,43 @@ async def test_fire_propagates_client_error(monkeypatch: pytest.MonkeyPatch) -> 
 
     with pytest.raises(RuntimeError, match="prefect api unavailable"):
         await prefect_trigger.fire("dep-123")
+
+
+@pytest.mark.asyncio
+async def test_fire_returns_flow_run_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    _mock_get_client(monkeypatch)
+    monkeypatch.setattr(prefect_trigger, "log", MagicMock())
+
+    assert await prefect_trigger.fire("dep-123") == "flow-run-abc"
+
+
+@pytest.mark.asyncio
+async def test_fire_suppressed_outside_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The point of the whole change: dev must not enqueue production work."""
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    create = _mock_get_client(monkeypatch)
+    logger = MagicMock()
+    monkeypatch.setattr(prefect_trigger, "log", logger)
+
+    assert await prefect_trigger.fire("dep-123", parameters={"mode": "x"}) is None
+
+    create.assert_not_awaited()
+    logger.info.assert_called_once()
+    assert "SUPPRESSED" in logger.info.call_args.args[0]
+
+
+@pytest.mark.asyncio
+async def test_explicit_flag_fires_in_development(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The deliberate end-to-end test escape hatch."""
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.setenv("PREFECT_TRIGGER_ENABLED", "true")
+    create = _mock_get_client(monkeypatch)
+    monkeypatch.setattr(prefect_trigger, "log", MagicMock())
+
+    await prefect_trigger.fire("dep-123")
+
+    create.assert_awaited_once()
