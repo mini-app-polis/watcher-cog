@@ -185,29 +185,42 @@ async def run_watcher(config: WatcherConfig) -> None:
 
                 if new_files or modified_files:
                     try:
-                        await prefect_trigger.fire(
+                        flow_run_id = await prefect_trigger.fire(
                             config.deployment_id,
                             parameters=config.parameters,
                         )
                     except Exception as exc:
                         raise _TriggerFailed(f"{type(exc).__name__}: {exc}") from exc
                     seen = current
+                    # A suppressed fire is not a fire. The old wording was
+                    # unconditional, so in dev both this line and the
+                    # finding below would report work entering a pipeline
+                    # that never heard about it.
+                    outcome = (
+                        f"trigger fired flow_run={flow_run_id}"
+                        if flow_run_id
+                        else "trigger suppressed (not production)"
+                    )
                     log.info(
-                        "[%s] %s new, %s modified — trigger fired",
+                        "[%s] %s new, %s modified — %s",
                         config.name,
                         len(new_files),
                         len(modified_files),
+                        outcome,
                     )
                     # The event worth hearing about. A poll that changes
                     # nothing is the steady state and stays silent; a
                     # poll that fires a downstream deployment is the
                     # moment work entered the pipeline, and it is the
-                    # only record of that moment outside Prefect.
+                    # only record of that moment outside Prefect. Dev
+                    # still reports — the detection is real there even
+                    # when the trigger is not.
+                    verb = "Triggered" if flow_run_id else "Would trigger"
                     await _report(
                         config,
                         "SUCCESS",
                         (
-                            f"Triggered {config.deployment_id}: "
+                            f"{verb} {config.deployment_id}: "
                             f"{len(new_files)} new, "
                             f"{len(modified_files)} modified"
                         ),
