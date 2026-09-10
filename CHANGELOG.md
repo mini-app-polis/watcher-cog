@@ -1,3 +1,10 @@
+## [1.16.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.16.0...v1.16.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* moving to common 5.7.1 ([5b9473b](https://github.com/mini-app-polis/watcher-cog/commit/5b9473b93bbef7cbc689e400bcd2b12d9e206014))
+
 # [1.16.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.15.6...v1.16.0) (2026-09-10)
 
 
