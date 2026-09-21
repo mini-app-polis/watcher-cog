@@ -1,3 +1,10 @@
+## [1.17.3](https://github.com/mini-app-polis/watcher-cog/compare/v1.17.2...v1.17.3) (2026-09-21)
+
+
+### Bug Fixes
+
+* **deps:** bump the python-minor-and-patch group with 3 updates ([bf1a989](https://github.com/mini-app-polis/watcher-cog/commit/bf1a989cbcf8587378710a576efe768703fd46fb))
+
 ## [1.17.2](https://github.com/mini-app-polis/watcher-cog/compare/v1.17.1...v1.17.2) (2026-09-21)
 
 
