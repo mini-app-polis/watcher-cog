@@ -1,3 +1,15 @@
+# [1.17.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.16.1...v1.17.0) (2026-09-21)
+
+
+### Bug Fixes
+
+* **deps:** bump the python-minor-and-patch group with 3 updates ([031cbe4](https://github.com/mini-app-polis/watcher-cog/commit/031cbe4bb2c91993ac89ac8c4628e52a61cc21da))
+
+
+### Features
+
+* **trigger:** trigger deejay-cog through the API instead of Prefect ([8c2cc5e](https://github.com/mini-app-polis/watcher-cog/commit/8c2cc5e10a7773b68d122a2ecad6928432e8f68e))
+
 ## [1.16.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.16.0...v1.16.1) (2026-09-10)
 
 
