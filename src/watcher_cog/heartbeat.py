@@ -32,6 +32,8 @@ async def ping() -> None:
     if not url:
         return
 
+    # no-retry: the ping runs every poll cycle, so the next one is the retry,
+    # and a check that misses pings is how Healthchecks reports an outage.
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(url)
