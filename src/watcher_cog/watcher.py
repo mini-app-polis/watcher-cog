@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import uuid
 from datetime import UTC, datetime, timedelta
 
 from mini_app_polis.pipeline_status import post_run_finding
@@ -19,6 +20,15 @@ REPO = "watcher-cog"
 #: This cog has no Prefect flow of its own — it is a plain asyncio loop —
 #: so neither "flow_inline" nor "flow_hook" would be true.
 SOURCE = "watcher_loop"
+
+#: The run id for reports that belong to no trigger — a baseline warning, a
+#: failed poll, a recovery. One per process, so every report from one
+#: container's lifetime shares an id and a restart starts a new one.
+#:
+#: Passed explicitly because the fallback, ``get_run_id()``, only knows
+#: Prefect's ids: without it every report arrived as ``run local-run``,
+#: which identifies nothing.
+PROCESS_RUN_ID = f"watcher-{uuid.uuid4().hex[:12]}"
 
 
 class _TriggerFailed(Exception):
@@ -55,8 +65,14 @@ async def _report(
     text: str,
     *,
     notable: bool = False,
+    run_id: str | None = None,
 ) -> bool:
     """Report one watcher event. Never raises, never blocks the loop.
+
+    ``run_id`` names what the event started: a trigger's queue message id
+    (or Prefect flow-run id), so the watcher's "Triggered" line and the run
+    it started carry the same id. Anything else falls back to
+    :data:`PROCESS_RUN_ID`.
 
     Returns whether the message actually landed. The caller needs that:
     an ERROR that was never delivered must not consume the one report
@@ -78,6 +94,7 @@ async def _report(
             repo=REPO,
             source=SOURCE,
             notable=notable,
+            run_id=run_id or PROCESS_RUN_ID,
         )
     except Exception as exc:  # noqa: BLE001 - reporting must never break polling
         log.error("[%s] report failed: %s", config.name, exc)
@@ -239,6 +256,7 @@ async def run_watcher(config: WatcherConfig) -> None:
                             f"{len(modified_files)} modified"
                         ),
                         notable=True,
+                        run_id=trigger_id,
                     )
                 else:
                     seen = current

@@ -268,9 +268,19 @@ def test_watcher_config_default_values() -> None:
 # and the moment polling breaks. Everything else is the steady state.
 
 
-def _patch_report(
-    monkeypatch: pytest.MonkeyPatch, *, lands: bool = True
-) -> list[tuple]:
+class _Sent(list):
+    """What the fake reporter captured, as (severity, text, notable) tuples.
+
+    A list so every existing caller unpacks it unchanged, with the run ids
+    alongside for the tests that care about them.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.run_ids: list[str | None] = []
+
+
+def _patch_report(monkeypatch: pytest.MonkeyPatch, *, lands: bool = True) -> _Sent:
     """Capture (severity, text, notable) for every report the loop makes.
 
     The double returns a bool because the real ``_report`` does, and the
@@ -278,10 +288,19 @@ def _patch_report(
     ``None`` would put every test on the undelivered path by accident.
     Pass ``lands=False`` to exercise that path deliberately.
     """
-    sent: list[tuple] = []
+    sent = _Sent()
+    run_ids = sent.run_ids
 
-    async def _fake_report(config, severity, text, *, notable=False) -> bool:  # noqa: ANN001
+    async def _fake_report(
+        config: WatcherConfig,
+        severity: str,
+        text: str,
+        *,
+        notable: bool = False,
+        run_id: str | None = None,
+    ) -> bool:
         sent.append((severity, text, notable))
+        run_ids.append(run_id)
         return lands
 
     monkeypatch.setattr(watcher_module, "_report", _fake_report)
@@ -1035,3 +1054,44 @@ async def test_a_refused_api_trigger_retries_the_same_files_next_cycle(
     assert severity == "ERROR"
     assert "Trigger failed for POST /v1/deejay/runs" in text
     assert any(t.startswith("Triggered POST /v1/deejay/runs") for _s, t, _n in sent)
+
+
+@pytest.mark.asyncio
+async def test_a_trigger_report_carries_the_run_it_started(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The watcher's "Triggered" line and the Lambda run share one id.
+
+    It used to say ``run local-run``: get_run_id() only knows Prefect's ids.
+    """
+    folders = [[], [_file("b")]]
+    monkeypatch.setattr(
+        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
+    )
+    monkeypatch.setattr(
+        watcher_module.api_trigger, "fire", AsyncMock(return_value="m-7")
+    )
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, []))
+    sent = _patch_report(monkeypatch)
+
+    with pytest.raises(LoopExit):
+        await run_watcher(_api_cfg())
+
+    assert sent[0][1].startswith("Triggered")
+    assert sent.run_ids == ["m-7"]
+
+
+@pytest.mark.asyncio
+async def test_reports_without_a_trigger_use_the_process_run_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Not ``local-run``: the fallback identifies this container's lifetime."""
+    delivered = MagicMock(sent=True, suppressed=0)
+    post = MagicMock(return_value=delivered)
+    monkeypatch.setattr(watcher_module, "post_run_finding", post)
+
+    await watcher_module._report(_api_cfg(), "WARN", "baseline", notable=True)
+
+    assert post.call_args.kwargs["run_id"] == watcher_module.PROCESS_RUN_ID
+    assert watcher_module.PROCESS_RUN_ID.startswith("watcher-")
