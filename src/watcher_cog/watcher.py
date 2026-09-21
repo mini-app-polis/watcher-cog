@@ -36,8 +36,9 @@ class _TriggerFailed(Exception):
 async def _fire(config: WatcherConfig) -> str | None:
     """Start this watcher's downstream work. Returns the run or message id.
 
-    ``None`` means a Prefect trigger was suppressed outside production;
-    the API trigger never suppresses (see :mod:`watcher_cog.api_trigger`).
+    ``None`` means the trigger was suppressed outside production — both
+    kinds are gated, because a development watcher polls production's
+    folders.
     ``WatcherConfig`` guarantees exactly one target is set.
     """
     if config.api_path:

@@ -61,3 +61,23 @@ async def test_an_acknowledgement_without_a_message_id_raises(
 
     with pytest.raises(KaianoApiError, match="message id"):
         await api_trigger.fire("/v1/deejay/runs", parameters={"mode": "x"})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("environment", ["development", "local"])
+async def test_outside_production_nothing_is_called(
+    monkeypatch: pytest.MonkeyPatch, environment: str
+) -> None:
+    """A dev watcher polls production's folders; its trigger must not fire.
+
+    The dev API once resolved itself as production and addressed
+    deejay-jobs. Suppressing here does not depend on it getting that right.
+    """
+    monkeypatch.setenv("ENVIRONMENT", environment)
+    client = _client(monkeypatch, return_value={"data": {"message_id": "m-1"}})
+    monkeypatch.setattr(api_trigger, "log", MagicMock())
+
+    result = await api_trigger.fire("/v1/deejay/runs", parameters={"mode": "x"})
+
+    assert result is None
+    client.factory.assert_not_called()

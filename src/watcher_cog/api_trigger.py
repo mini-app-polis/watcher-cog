@@ -8,12 +8,15 @@ Authenticates as ``watcher-cog`` with ``WATCHER_COG_API_KEY`` — the same
 key the run reports already use — and posts to the base URL for this
 environment (``KAIANO_API_BASE_URL``, or ``_DEV`` outside production).
 
-**Not gated by environment, unlike the Prefect trigger.** That gate exists
-because Prefect Cloud has one workspace and the deployment ids are
-production's, so a dev watcher could only ever fire production work. The
-API has an environment split: a dev watcher reaches the dev API, and what
-that enqueues onto is the dev API's own configuration. Gating it here as
-well would make a dev end-to-end test impossible without an override.
+**Gated to production, like the Prefect trigger.** A development watcher
+polls the same Drive folders production does, so anything it fires is a
+second trigger for production's uploads. This was first left ungated on the
+reasoning that a dev watcher reaches the dev API, which enqueues onto a
+``-dev-jobs`` queue. That held only while the dev API knew it was
+development: on 2026-09-21 the dev API resolved itself as production and
+addressed ``deejay-jobs``, and only a missing credential kept the dev
+watcher from starting production runs. Whether a trigger fires is decided
+here, where the folders are production's, not downstream.
 
 A non-2xx answer raises. The watcher loop only advances its view of the
 folder after a trigger returns, so raising is what makes the next cycle
@@ -25,6 +28,7 @@ from __future__ import annotations
 import asyncio
 
 from mini_app_polis.api import KaianoApiClient, KaianoApiError
+from mini_app_polis.environment import Environment, current_environment
 
 from watcher_cog.logger import log
 
@@ -32,8 +36,12 @@ from watcher_cog.logger import log
 MACHINE_NAME = "watcher-cog"
 
 
-async def fire(path: str, parameters: dict[str, object] | None = None) -> str:
+async def fire(path: str, parameters: dict[str, object] | None = None) -> str | None:
     """POST ``parameters`` to ``path`` and return the queue message id.
+
+    Returns ``None`` without calling anything outside production, which the
+    watcher loop already reports as "Would trigger" — the same contract as
+    :func:`watcher_cog.prefect_trigger.fire`.
 
     ``KaianoApiClient`` is synchronous and does network I/O, so the call
     goes to a thread; every watcher shares this event loop.
@@ -42,6 +50,14 @@ async def fire(path: str, parameters: dict[str, object] | None = None) -> str:
     cannot be reached, and when it acknowledges without a message id — an
     acknowledgement nobody can trace is not evidence the work was queued.
     """
+    if current_environment() is not Environment.PRODUCTION:
+        log.info(
+            "api trigger SUPPRESSED (not production) path=%s parameters=%s",
+            path,
+            parameters or {},
+        )
+        return None
+
     client = KaianoApiClient.from_env(machine_name=MACHINE_NAME)
     response = await asyncio.to_thread(client.post, path, parameters or {})
 
