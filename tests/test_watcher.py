@@ -231,6 +231,7 @@ def test_watcher_config_dataclass_field_set() -> None:
         "name",
         "folder_id",
         "deployment_id",
+        "api_path",
         "interval_min",
         "idle_interval_min",
         "activity_signal",
@@ -926,3 +927,111 @@ async def test_a_new_cause_after_recovery_reports_again(
     recoveries = [t for sev, t, _ in sent if sev == "SUCCESS" and "recovered" in t]
     assert len(recoveries) == 1
     assert "poll recovered" in recoveries[0]
+
+
+# ---------------------------------------------------------------------------
+# Targets: API route or Prefect deployment
+# ---------------------------------------------------------------------------
+
+
+def _api_cfg() -> WatcherConfig:
+    return WatcherConfig(
+        name="dj-sets",
+        folder_id="folder",
+        api_path="/v1/deejay/runs",
+        parameters={"mode": "process-new-files"},
+    )
+
+
+@pytest.mark.parametrize(
+    "targets",
+    [
+        {},
+        {"deployment_id": "dep", "api_path": "/v1/deejay/runs"},
+    ],
+)
+def test_a_watcher_needs_exactly_one_target(targets: dict) -> None:
+    """Neither starts nothing; both starts the same work twice."""
+    with pytest.raises(ValueError, match="exactly one"):
+        WatcherConfig(name="w", folder_id="f", **targets)
+
+
+def test_deejay_watchers_post_to_the_api_and_transcription_stays_on_prefect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The cutover is per cog. Deejay's Prefect deployment is not reachable."""
+    from watcher_cog.config import get_watchers
+
+    monkeypatch.setenv("CSV_SOURCE_FOLDER_ID", "csv")
+    monkeypatch.setenv("NOTES_INPUT_FOLDER_ID", "notes")
+    monkeypatch.setenv("GOOGLE_DRIVE_VOICE_INBOX_FOLDER_ID", "voice")
+    by_name = {w.name: w for w in get_watchers()}
+
+    for name, mode in (
+        ("dj-sets", "process-new-files"),
+        ("live-history", "ingest-live-history"),
+    ):
+        assert by_name[name].api_path == "/v1/deejay/runs"
+        assert by_name[name].deployment_id is None
+        assert by_name[name].parameters == {"mode": mode}
+
+    for name in ("wcs-notes", "voice-notes"):
+        assert by_name[name].deployment_id
+        assert by_name[name].api_path is None
+
+
+@pytest.mark.asyncio
+async def test_an_api_target_fires_the_api_not_prefect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    folders = [[], [_file("b")]]
+    monkeypatch.setattr(
+        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
+    )
+    api_fire = AsyncMock(return_value="m-1")
+    prefect_fire = AsyncMock()
+    monkeypatch.setattr(watcher_module.api_trigger, "fire", api_fire)
+    monkeypatch.setattr(watcher_module.prefect_trigger, "fire", prefect_fire)
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, []))
+    logger = MagicMock()
+    monkeypatch.setattr(watcher_module, "log", logger)
+    sent = _patch_report(monkeypatch)
+
+    with pytest.raises(LoopExit):
+        await run_watcher(_api_cfg())
+
+    api_fire.assert_awaited_once_with(
+        "/v1/deejay/runs", parameters={"mode": "process-new-files"}
+    )
+    prefect_fire.assert_not_awaited()
+    assert sent[0][1].startswith("Triggered POST /v1/deejay/runs")
+    info_args = [c.args for c in logger.info.call_args_list]
+    assert any(
+        any("trigger fired message=m-1" in str(a) for a in args) for args in info_args
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_refused_api_trigger_retries_the_same_files_next_cycle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 502 from the API must not advance ``seen``, or the upload is lost."""
+    folders = [[], [_file("b")], [_file("b")]]
+    monkeypatch.setattr(
+        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
+    )
+    api_fire = AsyncMock(side_effect=[RuntimeError("502 dispatch_failed"), "m-2"])
+    monkeypatch.setattr(watcher_module.api_trigger, "fire", api_fire)
+    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
+    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
+    sent = _patch_report(monkeypatch)
+
+    with pytest.raises(LoopExit):
+        await run_watcher(_api_cfg())
+
+    assert api_fire.await_count == 2
+    severity, text, _notable = sent[0]
+    assert severity == "ERROR"
+    assert "Trigger failed for POST /v1/deejay/runs" in text
+    assert any(t.startswith("Triggered POST /v1/deejay/runs") for _s, t, _n in sent)

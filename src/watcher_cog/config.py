@@ -8,11 +8,20 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class WatcherConfig:
-    """Static mapping from one Drive folder to one Prefect deployment."""
+    """Static mapping from one Drive folder to the thing that processes it.
+
+    Exactly one target: ``api_path`` for a cog that has moved to its own
+    queue — the API enqueues onto it — or ``deployment_id`` for a cog still
+    served by Prefect. Both is two triggers for one change; neither is a
+    watcher that detects work and starts nothing.
+    """
 
     name: str
     folder_id: str
-    deployment_id: str
+    deployment_id: str | None = None
+    #: API route that enqueues this watcher's work, e.g. ``/v1/deejay/runs``.
+    #: ``parameters`` is the request body.
+    api_path: str | None = None
     interval_min: int = 1
     idle_interval_min: int = 1
     activity_signal: str = "none"
@@ -47,7 +56,23 @@ class WatcherConfig:
     ``voice-notes`` pins ``{"mode": "voicenotes"}`` against
     transcription-cog's router. The transcription-cog router has no
     cron-default mode — every trigger must specify one.
+
+    For an ``api_path`` target this is the request body unchanged, which
+    is why the API's schema is the same ``{"mode": ...}``.
     """
+
+    def __post_init__(self) -> None:
+        if bool(self.deployment_id) == bool(self.api_path):
+            raise ValueError(
+                f"watcher {self.name!r} needs exactly one of deployment_id or api_path"
+            )
+
+    @property
+    def target(self) -> str:
+        """What this watcher triggers, as it should read in a message."""
+        if self.api_path:
+            return f"POST {self.api_path}"
+        return f"deployment {self.deployment_id}"
 
 
 def _require(name: str) -> str:
@@ -57,11 +82,12 @@ def _require(name: str) -> str:
     return v
 
 
-#: deejay-cog now serves a single router deployment
-#: (`deejay-cog/deejay-cog`) that dispatches via a `mode` parameter.
-#: Both dj-sets and live-history watchers point at the same deployment
-#: UUID and differ only by the mode they pass in.
-_DEEJAY_ROUTER_DEPLOYMENT_ID = "f717735e-5a04-4aeb-ab98-cf60e8d1be0f"
+#: deejay-cog runs on Lambda behind its own queue, and the API is the only
+#: thing that enqueues onto it. Both dj-sets and live-history post here and
+#: differ only by the mode they pass. This replaced the Prefect router
+#: deployment `deejay-cog/deejay-cog`; the UUID is gone with it, so there
+#: is no second path that could fire the same work.
+_DEEJAY_RUNS_PATH = "/v1/deejay/runs"
 
 #: transcription-cog (originally notes-ingest-cog — renamed May 2026, see
 #: ADR-004) now serves a single router deployment that hosts both the
@@ -86,14 +112,14 @@ def get_watchers() -> list[WatcherConfig]:
         WatcherConfig(
             name="dj-sets",
             folder_id=_require("CSV_SOURCE_FOLDER_ID"),
-            deployment_id=_DEEJAY_ROUTER_DEPLOYMENT_ID,
+            api_path=_DEEJAY_RUNS_PATH,
             interval_min=1,
             parameters={"mode": "process-new-files"},
         ),
         WatcherConfig(
             name="live-history",
             folder_id="1HGxEr5ocY9JLtXcJqDRIOD95rXU6QLUW",
-            deployment_id=_DEEJAY_ROUTER_DEPLOYMENT_ID,
+            api_path=_DEEJAY_RUNS_PATH,
             interval_min=1,
             # This folder holds the live-history sheets themselves. They
             # are modified in place and nothing removes them, so it is

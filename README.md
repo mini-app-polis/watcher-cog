@@ -121,7 +121,8 @@ WATCHERS: list[WatcherConfig] = [
 |---|---|---|
 | `name` | required | Human-readable label used in logs |
 | `folder_id` | required | Google Drive folder ID to watch |
-| `deployment_id` | required | Prefect deployment UUID to trigger |
+| `deployment_id` | `None` | Prefect deployment UUID to trigger. Exactly one of this or `api_path` |
+| `api_path` | `None` | API route that enqueues the work, e.g. `/v1/deejay/runs`; `parameters` is the body. Exactly one of this or `deployment_id` |
 | `interval_min` | `1` | Poll interval when active |
 | `idle_interval_min` | same as `interval_min` | Poll interval when idle (only used with activity signal) |
 | `activity_signal` | `"none"` | `"none"` for flat polling, `"file_mod_time"` for two-mode |
