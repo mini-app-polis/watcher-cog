@@ -1,3 +1,10 @@
+## [1.17.2](https://github.com/mini-app-polis/watcher-cog/compare/v1.17.1...v1.17.2) (2026-09-21)
+
+
+### Bug Fixes
+
+* **report:** give watcher reports a run id instead of local-run ([f7bdca2](https://github.com/mini-app-polis/watcher-cog/commit/f7bdca24a5c7cef3dedbf3fc70910db42fd8e9a0))
+
 ## [1.17.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.17.0...v1.17.1) (2026-09-21)
 
 
