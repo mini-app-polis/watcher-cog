@@ -1,3 +1,10 @@
+## [1.17.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.17.0...v1.17.1) (2026-09-21)
+
+
+### Bug Fixes
+
+* **trigger:** suppress the API trigger outside production ([3e7ee11](https://github.com/mini-app-polis/watcher-cog/commit/3e7ee119ee95ae3a4bee4ab8573c4c92f7cb260f))
+
 # [1.17.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.16.1...v1.17.0) (2026-09-21)
 
 
