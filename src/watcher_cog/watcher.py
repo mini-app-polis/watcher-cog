@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 from mini_app_polis.pipeline_status import post_run_finding
 
-from watcher_cog import drive_client, heartbeat, prefect_trigger
+from watcher_cog import api_trigger, drive_client, heartbeat, prefect_trigger
 from watcher_cog.config import WatcherConfig
 from watcher_cog.logger import log
 
@@ -22,15 +22,30 @@ SOURCE = "watcher_loop"
 
 
 class _TriggerFailed(Exception):
-    """Drive answered; Prefect would not take the work.
+    """Drive answered; the trigger target would not take the work.
 
     Raised only to carry that distinction out to the one handler at the
     bottom of the loop, which otherwise cannot tell a Drive fault from a
-    Prefect one and calls both a failed poll. The two need different
-    messages because they need different fixes, and because a trigger
-    that did not fire means files arrived and no run started — the one
-    outcome this cog exists to prevent.
+    trigger fault — the API's or Prefect's — and calls both a failed poll.
+    The two need different messages because they need different fixes,
+    and because a trigger that did not fire means files arrived and no
+    run started — the one outcome this cog exists to prevent.
     """
+
+
+async def _fire(config: WatcherConfig) -> str | None:
+    """Start this watcher's downstream work. Returns the run or message id.
+
+    ``None`` means a Prefect trigger was suppressed outside production;
+    the API trigger never suppresses (see :mod:`watcher_cog.api_trigger`).
+    ``WatcherConfig`` guarantees exactly one target is set.
+    """
+    if config.api_path:
+        return await api_trigger.fire(config.api_path, parameters=config.parameters)
+    return await prefect_trigger.fire(
+        config.deployment_id,  # type: ignore[arg-type]
+        parameters=config.parameters,
+    )
 
 
 async def _report(
@@ -185,10 +200,7 @@ async def run_watcher(config: WatcherConfig) -> None:
 
                 if new_files or modified_files:
                     try:
-                        flow_run_id = await prefect_trigger.fire(
-                            config.deployment_id,
-                            parameters=config.parameters,
-                        )
+                        trigger_id = await _fire(config)
                     except Exception as exc:
                         raise _TriggerFailed(f"{type(exc).__name__}: {exc}") from exc
                     seen = current
@@ -196,9 +208,10 @@ async def run_watcher(config: WatcherConfig) -> None:
                     # unconditional, so in dev both this line and the
                     # finding below would report work entering a pipeline
                     # that never heard about it.
+                    id_kind = "message" if config.api_path else "flow_run"
                     outcome = (
-                        f"trigger fired flow_run={flow_run_id}"
-                        if flow_run_id
+                        f"trigger fired {id_kind}={trigger_id}"
+                        if trigger_id
                         else "trigger suppressed (not production)"
                     )
                     log.info(
@@ -212,15 +225,15 @@ async def run_watcher(config: WatcherConfig) -> None:
                     # nothing is the steady state and stays silent; a
                     # poll that fires a downstream deployment is the
                     # moment work entered the pipeline, and it is the
-                    # only record of that moment outside Prefect. Dev
+                    # only record of that moment outside the target. Dev
                     # still reports — the detection is real there even
                     # when the trigger is not.
-                    verb = "Triggered" if flow_run_id else "Would trigger"
+                    verb = "Triggered" if trigger_id else "Would trigger"
                     await _report(
                         config,
                         "SUCCESS",
                         (
-                            f"{verb} {config.deployment_id}: "
+                            f"{verb} {config.target}: "
                             f"{len(new_files)} new, "
                             f"{len(modified_files)} modified"
                         ),
@@ -268,7 +281,7 @@ async def run_watcher(config: WatcherConfig) -> None:
             if first_of_kind:
                 if kind == "trigger":
                     text = (
-                        f"Trigger failed for deployment {config.deployment_id}: "
+                        f"Trigger failed for {config.target}: "
                         f"{exc}. Drive changes were seen and no run was "
                         "started; the next cycle will retry the same files. "
                         "Further failures of this kind are logged but not "

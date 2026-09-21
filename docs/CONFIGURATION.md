@@ -20,15 +20,17 @@ for the full list with descriptions.
 Watchers are defined in src/watcher_cog/config.py as a list of
 WatcherConfig dataclasses. See README.md for full field documentation.
 
-The optional `parameters: dict` field on WatcherConfig is forwarded
-as flow-run parameters to `create_flow_run_from_deployment`. Used by
-router-style deployments (one Prefect deployment dispatching to
-multiple modes via a `mode` parameter) to pin the dispatch mode for
-trigger-fired runs. Examples:
+Each watcher has exactly one target. `api_path` is for a cog that has
+moved off Prefect onto its own queue: watcher POSTs `parameters` to that
+route as `watcher-cog` (`WATCHER_COG_API_KEY`), and the API enqueues.
+`deployment_id` is for a cog still served by Prefect, where `parameters`
+is forwarded as flow-run parameters to `create_flow_run_from_deployment`.
+Either way it pins the router's `mode`. Examples:
 
-- `dj-sets` and `live-history` both point at `deejay-cog/deejay-cog`
-  and pass `{"mode": "process-new-files"}` and
-  `{"mode": "ingest-live-history"}` respectively.
+- `dj-sets` and `live-history` POST `/v1/deejay/runs` with
+  `{"mode": "process-new-files"}` and `{"mode": "ingest-live-history"}`
+  respectively. They used to trigger the Prefect deployment
+  `deejay-cog/deejay-cog`, which is retired.
 - `wcs-notes` and `voice-notes` both point at
   `notes-ingest-cog/notes-ingest-cog` (the merged-in-May-2026 transcription-cog deployment
   that hosts the WCS-transcripts and voicenotes pipelines under one
