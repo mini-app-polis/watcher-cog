@@ -1,3 +1,10 @@
+# [1.18.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.17.3...v1.18.0) (2026-09-22)
+
+
+### Features
+
+* **trigger:** trigger transcription-cog per file through the API ([6eed2be](https://github.com/mini-app-polis/watcher-cog/commit/6eed2be0805ed319424ce1c416177f8fd2184d26))
+
 ## [1.17.3](https://github.com/mini-app-polis/watcher-cog/compare/v1.17.2...v1.17.3) (2026-09-21)
 
 
