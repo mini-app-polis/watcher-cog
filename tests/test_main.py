@@ -28,7 +28,7 @@ async def test_main_no_watchers_exits_early(monkeypatch: pytest.MonkeyPatch) -> 
 async def test_main_logs_error_when_watcher_crashes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = WatcherConfig(name="bad-watcher", folder_id="f", deployment_id="d")
+    config = WatcherConfig(name="bad-watcher", folder_id="f", api_path="/v1/d/runs")
     monkeypatch.setattr(main_module, "get_watchers", lambda: [config])
     monkeypatch.setattr("watcher_cog.main.load_dotenv", lambda: None)
     monkeypatch.setattr("watcher_cog.main.sentry_sdk.init", lambda **kwargs: None)
@@ -61,7 +61,7 @@ async def test_a_dying_watcher_reports_immediately(
     """
     import watcher_cog.watcher as watcher_module
 
-    config = WatcherConfig(name="w1", folder_id="folder-1", deployment_id="dep")
+    config = WatcherConfig(name="w1", folder_id="folder-1", api_path="/v1/dep/runs")
     sent: list[tuple] = []
 
     async def _fake_report(cfg, severity, text, *, notable=False) -> bool:  # noqa: ANN001
@@ -100,7 +100,7 @@ async def test_main_runs_watchers_through_the_supervisor(
     """
     import watcher_cog.watcher as watcher_module
 
-    config = WatcherConfig(name="w1", folder_id="folder-1", deployment_id="dep")
+    config = WatcherConfig(name="w1", folder_id="folder-1", api_path="/v1/dep/runs")
     monkeypatch.setattr(main_module, "get_watchers", lambda: [config])
     monkeypatch.setattr("watcher_cog.main.load_dotenv", lambda: None)
     monkeypatch.setattr("watcher_cog.main.sentry_sdk.init", lambda **kwargs: None)
@@ -132,7 +132,7 @@ async def test_a_failing_report_does_not_swallow_the_crash(
     """The wrapper must not turn a crash into a different crash."""
     import watcher_cog.watcher as watcher_module
 
-    config = WatcherConfig(name="w1", folder_id="folder-1", deployment_id="dep")
+    config = WatcherConfig(name="w1", folder_id="folder-1", api_path="/v1/dep/runs")
 
     async def _exploding_report(*args, **kwargs) -> bool:  # noqa: ANN002, ANN003
         raise RuntimeError("notify exploded")
@@ -156,7 +156,7 @@ async def test_cancellation_is_not_reported_as_a_crash(
 
     import watcher_cog.watcher as watcher_module
 
-    config = WatcherConfig(name="w1", folder_id="folder-1", deployment_id="dep")
+    config = WatcherConfig(name="w1", folder_id="folder-1", api_path="/v1/dep/runs")
     sent: list[tuple] = []
 
     async def _fake_report(cfg, severity, text, *, notable=False) -> bool:  # noqa: ANN001
@@ -182,9 +182,9 @@ async def test_main_crash_in_one_watcher_does_not_stop_others(
     """TEST-003: a crash in one watcher does not prevent sibling
     watchers from running to completion. This is the asyncio.gather
     (return_exceptions=True) resilience contract in main()."""
-    bad = WatcherConfig(name="bad-watcher", folder_id="f-bad", deployment_id="d-bad")
+    bad = WatcherConfig(name="bad-watcher", folder_id="f-bad", api_path="/v1/bad/runs")
     good = WatcherConfig(
-        name="good-watcher", folder_id="f-good", deployment_id="d-good"
+        name="good-watcher", folder_id="f-good", api_path="/v1/good/runs"
     )
     monkeypatch.setattr(main_module, "get_watchers", lambda: [bad, good])
     monkeypatch.setattr("watcher_cog.main.load_dotenv", lambda: None)
