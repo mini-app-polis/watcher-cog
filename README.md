@@ -1,22 +1,23 @@
 # watcher-cog
 
-A lightweight, always-on service that watches Google Drive folders and fires [Prefect](https://prefect.io) flow runs when new files appear. Built to replace Google Apps Script trigger chains with a single, observable, version-controlled Python service.
+A lightweight, always-on service that watches Google Drive folders and asks api-kaianolevine-com to run the cog that owns a folder when files land in it. Built to replace Google Apps Script trigger chains with a single, observable, version-controlled Python service.
 
 ---
 
 ## Overview
 
-`watcher-cog` is a Railway worker service — no HTTP server, no queue, no framework. It runs a configurable set of folder watchers as concurrent async loops. Each watcher polls a Drive folder on a fixed interval, diffs against its last-known file set, and fires a Prefect deployment run when new files are detected.
+`watcher-cog` is a Railway worker service — no HTTP server, no queue, no framework. It runs a configurable set of folder watchers as concurrent async loops. Each watcher polls a Drive folder on a fixed interval, diffs against its last-known file set, and POSTs the owning cog's runs route when new or modified files are detected. The API enqueues the job onto that cog's queue.
 
 **What it does:**
 - Polls one or more Google Drive folders on a configurable interval
 - Detects new files by diffing against in-memory state
-- Fires a Prefect `create_flow_run` API call per watcher when new files appear
+- POSTs the owning cog's runs route when files change — once per folder change, or once per changed file for a `per_file` watcher
 - Phones home to a dead man's switch (Healthchecks.io) on every cycle
 - Logs structured output on every poll — folder checked, files found, trigger fired or skipped
 
 **What it does not do:**
-- Process files — that is the responsibility of the Prefect flow it triggers
+- Process files — that is the responsibility of the cog it triggers
+- Write to a queue — the API is the fleet's only producer
 - Persist state — seen file IDs are held in memory; a restart re-discovers files from the last poll window
 - Serve HTTP — this is a worker process, not an API
 
@@ -38,7 +39,7 @@ main.py
 Each watcher loop (while True):
 ├── drive_client.py  — list files in folder (Google Drive API)
 ├── Diff against seen_file_ids (in-memory set)
-├── prefect_trigger.py  — POST /deployments/{id}/create_flow_run
+├── api_trigger.py  — POST the cog's runs route on api-kaianolevine-com
 ├── heartbeat.py  — ping HEALTHCHECKS_URL_WATCHER
 └── asyncio.sleep(interval_min * 60)
 ```
@@ -53,7 +54,7 @@ State is intentionally in-memory. On restart, each watcher re-fetches the curren
 - [uv](https://github.com/astral-sh/uv) for dependency management
 - A Google Cloud project with the Drive API enabled
 - A service account with read access to the watched folders
-- A Prefect Cloud account with deployments already created
+- A `WATCHER_COG_API_KEY` for api-kaianolevine-com, holding the trigger role for each cog watched
 - A [Healthchecks.io](https://healthchecks.io) account (free tier sufficient)
 - [Railway](https://railway.app) (or any always-on host) for deployment
 
@@ -85,32 +86,40 @@ All configuration is via environment variables. Copy `.env.example` to `.env` fo
 | Variable | Required | Description |
 |---|---|---|
 | `GOOGLE_CREDENTIALS_JSON` | Yes | Service account credentials JSON (as a string, not a file path) |
-| `PREFECT_API_KEY` | Yes | Prefect Cloud API key |
-| `PREFECT_API_URL` | Yes | Prefect Cloud API URL (e.g. `https://api.prefect.cloud/api/accounts/{id}/workspaces/{id}`) |
+| `WATCHER_COG_API_KEY` | Yes | This cog's key for api-kaianolevine-com |
 | `HEALTHCHECKS_URL_WATCHER` | Yes | Healthchecks.io ping URL for this service |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO` (default), `WARNING` |
 
 ### Watcher config
 
-Watchers are defined in `src/watcher_cog/config.py` as a list of `WatcherConfig` dataclasses. Each entry maps one Drive folder to one Prefect deployment.
+Watchers are defined in `src/watcher_cog/config.py` as a list of `WatcherConfig` dataclasses. Each entry maps one Drive folder to one API route.
 
 ```python
 WATCHERS: list[WatcherConfig] = [
     WatcherConfig(
         name="dj-sets",
-        folder_id="1abc...xyz",                    # Google Drive folder ID
-        deployment_id="your-prefect-deployment-id", # Prefect deployment UUID
-        interval_min=1,                             # Poll every N minutes
+        folder_id="1abc...xyz",  # Google Drive folder ID
+        api_path="/v1/deejay/runs",  # Route that enqueues the work
+        parameters={"mode": "process-new-files"},  # The request body
+        interval_min=1,  # Poll every N minutes
+    ),
+    WatcherConfig(
+        name="wcs-notes",
+        folder_id="1jkl...mno",
+        api_path="/v1/transcription/runs",
+        per_file=True,  # One request per changed file
+        parameters={"mode": "wcs-transcripts"},  # drive_file_id is added per file
     ),
     WatcherConfig(
         name="live-history",
         folder_id="1def...uvw",
-        deployment_id="another-prefect-deployment-id",
+        api_path="/v1/deejay/runs",
+        parameters={"mode": "ingest-live-history"},
         interval_min=1,
-        idle_interval_min=30,                       # Back off when no activity signal
-        activity_signal="file_mod_time",            # "none" | "file_mod_time"
-        activity_file_id="1ghi...rst",              # File to check mod time against
-        activity_threshold_min=10,                  # Minutes before considered idle
+        idle_interval_min=30,  # Back off when no activity signal
+        activity_signal="file_mod_time",  # "none" | "file_mod_time"
+        activity_file_id="1ghi...rst",  # File to check mod time against
+        activity_threshold_min=10,  # Minutes before considered idle
     ),
 ]
 ```
@@ -121,8 +130,8 @@ WATCHERS: list[WatcherConfig] = [
 |---|---|---|
 | `name` | required | Human-readable label used in logs |
 | `folder_id` | required | Google Drive folder ID to watch |
-| `deployment_id` | `None` | Prefect deployment UUID to trigger. Exactly one of this or `api_path` |
-| `api_path` | `None` | API route that enqueues the work, e.g. `/v1/deejay/runs`; `parameters` is the body. Exactly one of this or `deployment_id` |
+| `api_path` | required | API route that enqueues the work, e.g. `/v1/deejay/runs`; `parameters` is the body |
+| `per_file` | `False` | Post once per changed file, adding `drive_file_id` to the body, rather than once for the folder. A per-file watcher on a drained folder also asks for the files already there at startup |
 | `interval_min` | `1` | Poll interval when active |
 | `idle_interval_min` | same as `interval_min` | Poll interval when idle (only used with activity signal) |
 | `activity_signal` | `"none"` | `"none"` for flat polling, `"file_mod_time"` for two-mode |
@@ -164,7 +173,7 @@ uv run python src/watcher_cog/main.py
 
 ## Post-deploy setup
 
-Two pieces of configuration live outside the codebase. Both are required for full observability. Neither can be automated — they require manual setup in external dashboards.
+Two things outside this codebase cover observability. Only the first needs setup for this service, in an external dashboard.
 
 ### 1. Healthchecks.io — process heartbeat
 
@@ -183,22 +192,9 @@ The watcher pings Healthchecks.io on every poll cycle. If it goes silent, you ge
 
 **Why not in code:** The ping URL is the credential on the free tier. It belongs in env vars alongside your other secrets, not hardcoded.
 
-### 2. Prefect Cloud — end-to-end trigger alert
+### 2. Dead-letter alarms — end-to-end correctness
 
-A running watcher process is a necessary but not sufficient condition for correct operation — it also needs to be successfully firing triggers. Prefect's built-in automations catch cases where the watcher runs but triggers fail silently.
-
-**Setup:**
-
-For each deployment that this service triggers, create a Prefect automation:
-
-1. In Prefect Cloud, go to **Automations → New Automation**
-2. **Trigger:** Flow run state — no `Completed` run within your expected window (e.g. 2 hours for an hourly processor, 24 hours for a daily one)
-3. **Action:** Send notification (email, Slack, PagerDuty — whatever you use)
-4. Repeat for each watched deployment
-
-**What this catches:** the watcher running but failing to fire triggers, Prefect API errors, downstream flow failures, and any gap in end-to-end processing.
-
-**Why not in code:** Prefect automation config can be codified via `prefect.yaml` but the UI is sufficient for this use case. If you need to recreate these after losing access to your Prefect workspace, the above steps take under 5 minutes per deployment.
+A running watcher process is a necessary but not sufficient condition for correct operation. A trigger the API refuses is reported by this cog as an ERROR and retried on the next cycle. A job that reaches a cog's queue and fails every retry lands in that cog's dead-letter queue, whose CloudWatch alarm is declared in the cog's own `infra/`. Nothing about that is configured here.
 
 ---
 
@@ -207,7 +203,7 @@ For each deployment that this service triggers, create a Prefect automation:
 | Layer | Tool | What it covers |
 |---|---|---|
 | Process liveness | Healthchecks.io | Is the watcher process running and looping? |
-| End-to-end correctness | Prefect Cloud automations | Are triggers firing and flows completing? |
+| End-to-end correctness | Trigger ERROR reports here; each cog's dead-letter alarm | Did the API take the work, and did the job finish? |
 | Crash recovery | Railway auto-restart | Does the process come back after an unhandled exception? |
 | Per-cycle detail | Structured logs (Railway log viewer) | What happened on each poll — useful for debugging |
 
@@ -223,7 +219,7 @@ watcher-cog/
 │       ├── config.py          # WatcherConfig dataclass + WATCHERS list
 │       ├── watcher.py         # Core watcher loop logic
 │       ├── drive_client.py    # Google Drive API wrapper
-│       ├── prefect_trigger.py # Prefect create_flow_run API call
+│       ├── api_trigger.py     # POST the owning cog's runs route
 │       └── heartbeat.py       # Healthchecks.io ping
 ├── tests/
 ├── .env.example

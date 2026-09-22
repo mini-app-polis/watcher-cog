@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 from mini_app_polis.pipeline_status import post_run_finding
 
-from watcher_cog import api_trigger, drive_client, heartbeat, prefect_trigger
+from watcher_cog import api_trigger, drive_client, heartbeat
 from watcher_cog.config import WatcherConfig
 from watcher_cog.logger import log
 
@@ -36,27 +36,65 @@ class _TriggerFailed(Exception):
 
     Raised only to carry that distinction out to the one handler at the
     bottom of the loop, which otherwise cannot tell a Drive fault from a
-    trigger fault — the API's or Prefect's — and calls both a failed poll.
+    trigger fault — the API refusing the work — and calls both a failed poll.
     The two need different messages because they need different fixes,
     and because a trigger that did not fire means files arrived and no
     run started — the one outcome this cog exists to prevent.
     """
 
 
-async def _fire(config: WatcherConfig) -> str | None:
-    """Start this watcher's downstream work. Returns the run or message id.
+async def _fire(config: WatcherConfig, file_ids: list[str]) -> list[str]:
+    """Start this watcher's downstream work. Returns the queue message ids.
 
-    ``None`` means the trigger was suppressed outside production — both
-    kinds are gated, because a development watcher polls production's
-    folders.
-    ``WatcherConfig`` guarantees exactly one target is set.
+    A ``per_file`` watcher asks once per file, naming it in the body; any
+    other asks once for the folder. An empty list means the trigger was
+    suppressed outside production, because a development watcher polls
+    production's folders.
+
+    A per-file fire that fails partway raises with the earlier files
+    already queued. The loop does not advance ``seen`` on a raise, so the
+    next cycle asks for all of them again — the earlier ones twice, which
+    the cog absorbs: a file it has processed is no longer in its inbox.
     """
-    if config.api_path:
-        return await api_trigger.fire(config.api_path, parameters=config.parameters)
-    return await prefect_trigger.fire(
-        config.deployment_id,  # type: ignore[arg-type]
-        parameters=config.parameters,
-    )
+    if not config.per_file:
+        message_id = await api_trigger.fire(
+            config.api_path, parameters=config.parameters
+        )
+        return [message_id] if message_id else []
+
+    message_ids: list[str] = []
+    for file_id in file_ids:
+        message_id = await api_trigger.fire(
+            config.api_path,
+            parameters={**config.parameters, "drive_file_id": file_id},
+        )
+        if message_id:
+            message_ids.append(message_id)
+    return message_ids
+
+
+def _outcome(trigger_ids: list[str]) -> str:
+    """The log line's account of a fire: what was queued, or that nothing was."""
+    if not trigger_ids:
+        return "trigger suppressed (not production)"
+    return f"trigger fired message={', '.join(str(i) for i in trigger_ids)}"
+
+
+def _run_id(trigger_ids: list[str]) -> str | None:
+    """The report's run id: the one message a fire became, if it became one.
+
+    Several messages are several runs, each reporting under its own id; a
+    watcher report cannot carry all of them, so it falls back to the
+    process id and names them in its text instead.
+    """
+    return trigger_ids[0] if len(trigger_ids) == 1 else None
+
+
+def _messages_suffix(trigger_ids: list[str]) -> str:
+    """The message ids a report cannot carry as its run id, for its text."""
+    if len(trigger_ids) < 2:
+        return ""
+    return f" — messages {', '.join(str(i) for i in trigger_ids)}"
 
 
 async def _report(
@@ -69,9 +107,9 @@ async def _report(
 ) -> bool:
     """Report one watcher event. Never raises, never blocks the loop.
 
-    ``run_id`` names what the event started: a trigger's queue message id
-    (or Prefect flow-run id), so the watcher's "Triggered" line and the run
-    it started carry the same id. Anything else falls back to
+    ``run_id`` names what the event started: a trigger's queue message id,
+    so the watcher's "Triggered" line and the run it started carry the same
+    id. Anything else falls back to
     :data:`PROCESS_RUN_ID`.
 
     Returns whether the message actually landed. The caller needs that:
@@ -195,7 +233,38 @@ async def run_watcher(config: WatcherConfig) -> None:
                 file.id: file.modified_time for file in files
             }
 
-            if not initialized:
+            if not initialized and (
+                current and config.per_file and config.drained_by_downstream
+            ):
+                # Whatever is in a drained inbox at startup is pending work,
+                # and a per-file watcher can name it — so it asks for it
+                # rather than baselining it into silence. A failure leaves
+                # the watcher uninitialised and the next cycle asks again.
+                try:
+                    trigger_ids = await _fire(config, list(current))
+                except Exception as exc:
+                    raise _TriggerFailed(f"{type(exc).__name__}: {exc}") from exc
+                seen = current
+                initialized = True
+                log.info(
+                    "[%s] initialised with %s pending file(s) — %s",
+                    config.name,
+                    len(current),
+                    _outcome(trigger_ids),
+                )
+                verb = "Triggered" if trigger_ids else "Would trigger"
+                await _report(
+                    config,
+                    "SUCCESS",
+                    (
+                        f"{verb} {config.target} for {len(current)} file(s) "
+                        f"already in {config.folder_id} on start"
+                        f"{_messages_suffix(trigger_ids)}"
+                    ),
+                    notable=True,
+                    run_id=_run_id(trigger_ids),
+                )
+            elif not initialized:
                 seen = current
                 initialized = True
                 log.info("[%s] initialised with %s file(s)", config.name, len(seen))
@@ -218,7 +287,7 @@ async def run_watcher(config: WatcherConfig) -> None:
 
                 if new_files or modified_files:
                     try:
-                        trigger_id = await _fire(config)
+                        trigger_ids = await _fire(config, new_files + modified_files)
                     except Exception as exc:
                         raise _TriggerFailed(f"{type(exc).__name__}: {exc}") from exc
                     seen = current
@@ -226,27 +295,21 @@ async def run_watcher(config: WatcherConfig) -> None:
                     # unconditional, so in dev both this line and the
                     # finding below would report work entering a pipeline
                     # that never heard about it.
-                    id_kind = "message" if config.api_path else "flow_run"
-                    outcome = (
-                        f"trigger fired {id_kind}={trigger_id}"
-                        if trigger_id
-                        else "trigger suppressed (not production)"
-                    )
                     log.info(
                         "[%s] %s new, %s modified — %s",
                         config.name,
                         len(new_files),
                         len(modified_files),
-                        outcome,
+                        _outcome(trigger_ids),
                     )
                     # The event worth hearing about. A poll that changes
                     # nothing is the steady state and stays silent; a
-                    # poll that fires a downstream deployment is the
+                    # poll that asks a downstream cog to run is the
                     # moment work entered the pipeline, and it is the
                     # only record of that moment outside the target. Dev
                     # still reports — the detection is real there even
                     # when the trigger is not.
-                    verb = "Triggered" if trigger_id else "Would trigger"
+                    verb = "Triggered" if trigger_ids else "Would trigger"
                     await _report(
                         config,
                         "SUCCESS",
@@ -254,9 +317,10 @@ async def run_watcher(config: WatcherConfig) -> None:
                             f"{verb} {config.target}: "
                             f"{len(new_files)} new, "
                             f"{len(modified_files)} modified"
+                            f"{_messages_suffix(trigger_ids)}"
                         ),
                         notable=True,
-                        run_id=trigger_id,
+                        run_id=_run_id(trigger_ids),
                     )
                 else:
                     seen = current

@@ -6,8 +6,6 @@ for the full list with descriptions.
 | Variable | Required | Description |
 |---|---|---|
 | GOOGLE_CREDENTIALS_JSON | Yes | Service account credentials JSON as a string |
-| PREFECT_API_KEY | Yes | Prefect Cloud API key |
-| PREFECT_API_URL | Yes | Prefect Cloud workspace API URL |
 | HEALTHCHECKS_URL_WATCHER | Yes | Healthchecks.io ping URL |
 | SENTRY_DSN | Yes | Sentry DSN for error tracking |
 | LOG_LEVEL | No | DEBUG, INFO (default), WARNING |
@@ -20,21 +18,23 @@ for the full list with descriptions.
 Watchers are defined in src/watcher_cog/config.py as a list of
 WatcherConfig dataclasses. See README.md for full field documentation.
 
-Each watcher has exactly one target. `api_path` is for a cog that has
-moved off Prefect onto its own queue: watcher POSTs `parameters` to that
-route as `watcher-cog` (`WATCHER_COG_API_KEY`), and the API enqueues.
-`deployment_id` is for a cog still served by Prefect, where `parameters`
-is forwarded as flow-run parameters to `create_flow_run_from_deployment`.
-Either way it pins the router's `mode`. Examples:
+Each watcher's target is an API route, `api_path`. Watcher POSTs
+`parameters` to it as `watcher-cog` (`WATCHER_COG_API_KEY`), and the API
+enqueues onto the owning cog's queue. `parameters` pins the cog's `mode`.
+A `per_file` watcher posts once per changed file and adds `drive_file_id`
+to the body; the others post once for the folder. Examples:
 
-- `dj-sets` and `live-history` POST `/v1/deejay/runs` with
-  `{"mode": "process-new-files"}` and `{"mode": "ingest-live-history"}`
-  respectively. They used to trigger the Prefect deployment
-  `deejay-cog/deejay-cog`, which is retired.
-- `wcs-notes` and `voice-notes` both point at
-  `notes-ingest-cog/notes-ingest-cog` (the merged-in-May-2026 transcription-cog deployment
-  that hosts the WCS-transcripts and voicenotes pipelines under one
-  Railway service) and pass `{"mode": "wcs-transcripts"}` and
-  `{"mode": "voicenotes"}` respectively. The transcription-cog router
-  has no cron-default mode — every trigger must specify one, and the
-  router raises `ValueError` otherwise.
+- `dj-sets` and `live-history` POST `/v1/deejay/runs` once per change,
+  with `{"mode": "process-new-files"}` and `{"mode": "ingest-live-history"}`
+  respectively. deejay-cog's job is a sweep of the folder.
+- `wcs-notes` and `voice-notes` POST `/v1/transcription/runs` once per
+  changed file, with `{"mode": "wcs-transcripts", "drive_file_id": ...}`
+  and `{"mode": "voicenotes", "drive_file_id": ...}` respectively.
+  transcription-cog's job is one file, because a sweep of its folder does
+  not fit in one Lambda invocation. Because they can name files, these two
+  also ask for whatever is already in their folder when watcher starts,
+  rather than baselining it. See
+  [ADR-004](decisions/ADR-004-api-trigger-per-file.md).
+
+Both cogs used to be triggered as Prefect deployments. Prefect is retired,
+and no watcher can reach it.

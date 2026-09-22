@@ -17,5 +17,6 @@ decision), **Decision** (what change is being made), and
 ## Index
 
 - [ADR-001: Always-on Railway process, not a Prefect flow](./ADR-001-always-on-not-a-flow.md)
-- [ADR-002: Raw httpx for Prefect deployment API](./ADR-002-raw-httpx-prefect-trigger.md)
+- [ADR-002: Raw httpx for Prefect deployment API](./ADR-002-raw-httpx-prefect-trigger.md) — superseded by ADR-004
 - [ADR-003: Polling cadence and idle-interval escalation](./ADR-003-polling-cadence.md)
+- [ADR-004: Trigger through the API only, and per file for transcription-cog](./ADR-004-api-trigger-per-file.md)

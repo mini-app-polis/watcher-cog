@@ -10,18 +10,24 @@ from dataclasses import dataclass, field
 class WatcherConfig:
     """Static mapping from one Drive folder to the thing that processes it.
 
-    Exactly one target: ``api_path`` for a cog that has moved to its own
-    queue — the API enqueues onto it — or ``deployment_id`` for a cog still
-    served by Prefect. Both is two triggers for one change; neither is a
-    watcher that detects work and starts nothing.
+    The target is an API route. The API enqueues onto the owning cog's
+    queue; nothing here talks to a queue or to Prefect.
     """
 
     name: str
     folder_id: str
-    deployment_id: str | None = None
     #: API route that enqueues this watcher's work, e.g. ``/v1/deejay/runs``.
     #: ``parameters`` is the request body.
-    api_path: str | None = None
+    api_path: str
+    #: Ask once per changed file, adding ``drive_file_id`` to the body,
+    #: rather than once for the folder. For a cog whose job is one file
+    #: because a sweep of the folder would not fit in one Lambda
+    #: invocation — transcription-cog. A per-file watcher on a drained
+    #: folder also asks for the files it finds at startup, instead of
+    #: baselining them into silence: it can name them, and asking twice
+    #: for a file is harmless because the cog skips one that has left its
+    #: inbox.
+    per_file: bool = False
     interval_min: int = 1
     idle_interval_min: int = 1
     activity_signal: str = "none"
@@ -46,33 +52,23 @@ class WatcherConfig:
     #: change that will never fire. Minutes.
     baseline_recent_change_min: int = 15
     parameters: dict[str, object] = field(default_factory=dict)
-    """Optional flow-run parameters merged into the deployment trigger.
+    """The request body posted to ``api_path``.
 
-    Watchers that target a router-style deployment (one that
-    dispatches multiple modes via a ``mode`` parameter) use this to
-    pin the dispatch mode for trigger fires. Examples: ``dj-sets``
-    pins ``{"mode": "process-new-files"}`` against deejay-cog's
-    router; ``wcs-notes`` pins ``{"mode": "wcs-transcripts"}`` and
-    ``voice-notes`` pins ``{"mode": "voicenotes"}`` against
-    transcription-cog's router. The transcription-cog router has no
-    cron-default mode — every trigger must specify one.
-
-    For an ``api_path`` target this is the request body unchanged, which
-    is why the API's schema is the same ``{"mode": ...}``.
+    Pins the mode of a cog that runs several: ``dj-sets`` sends
+    ``{"mode": "process-new-files"}`` to deejay-cog, ``wcs-notes`` sends
+    ``{"mode": "wcs-transcripts"}`` and ``voice-notes`` sends
+    ``{"mode": "voicenotes"}`` to transcription-cog. Neither cog has a
+    default mode. A ``per_file`` watcher adds ``drive_file_id`` to it.
     """
 
     def __post_init__(self) -> None:
-        if bool(self.deployment_id) == bool(self.api_path):
-            raise ValueError(
-                f"watcher {self.name!r} needs exactly one of deployment_id or api_path"
-            )
+        if not self.api_path:
+            raise ValueError(f"watcher {self.name!r} needs an api_path")
 
     @property
     def target(self) -> str:
         """What this watcher triggers, as it should read in a message."""
-        if self.api_path:
-            return f"POST {self.api_path}"
-        return f"deployment {self.deployment_id}"
+        return f"POST {self.api_path}"
 
 
 def _require(name: str) -> str:
@@ -89,21 +85,13 @@ def _require(name: str) -> str:
 #: is no second path that could fire the same work.
 _DEEJAY_RUNS_PATH = "/v1/deejay/runs"
 
-#: transcription-cog (originally notes-ingest-cog — renamed May 2026, see
-#: ADR-004) now serves a single router deployment that hosts both the
-#: WCS-transcripts pipeline AND the voicenotes pipeline (which was
-#: merged in from the legacy `voicenotes-cog` repo at the same time).
-#: The Prefect deployment name was kept as `notes-ingest-cog/notes-ingest-cog`
-#: through the rename to avoid an unnecessary deployment-UUID rotation
-#: and a second watcher reconfiguration — only the local repo + Python
-#: package were renamed. The deployment-name string is therefore a
-#: historical artifact, not a live identifier of the repo.
-#: Both `wcs-notes` and `voice-notes` watchers point at this same
-#: deployment UUID and differ only by the `mode` parameter they pass in.
-#: Replaces the legacy `process-transcript/notes-ingest-cog` deployment
-#: (`c3a48fd5-…`) and the standalone `voicenotes-router/voicenotes`
-#: deployment (`020a34b4-…`).
-_TRANSCRIPTION_ROUTER_DEPLOYMENT_ID = "a0bd7094-e90c-43d3-aed9-8e1fd7923687"
+#: transcription-cog runs on Lambda behind its own queue, one file per job:
+#: a sweep of the folder does not fit in one invocation. Both wcs-notes and
+#: voice-notes post here, once per changed file, and differ only by mode.
+#: This replaced the Prefect router deployment
+#: `notes-ingest-cog/notes-ingest-cog`; its UUID is gone with it, so there
+#: is no second path that could fire the same work.
+_TRANSCRIPTION_RUNS_PATH = "/v1/transcription/runs"
 
 
 def get_watchers() -> list[WatcherConfig]:
@@ -131,12 +119,9 @@ def get_watchers() -> list[WatcherConfig]:
         WatcherConfig(
             name="wcs-notes",
             folder_id=_require("NOTES_INPUT_FOLDER_ID"),
-            deployment_id=_TRANSCRIPTION_ROUTER_DEPLOYMENT_ID,
+            api_path=_TRANSCRIPTION_RUNS_PATH,
+            per_file=True,
             interval_min=1,
-            # Required: the transcription-cog router has no
-            # default mode — every trigger must specify which
-            # sub-pipeline to run, and the router raises ValueError
-            # otherwise.
             parameters={"mode": "wcs-transcripts"},
         ),
         WatcherConfig(
@@ -144,22 +129,13 @@ def get_watchers() -> list[WatcherConfig]:
             # Same env var the voicenotes sub-pipeline reads, so the
             # Doppler config holds one folder-ID value, not two.
             folder_id=_require("GOOGLE_DRIVE_VOICE_INBOX_FOLDER_ID"),
-            deployment_id=_TRANSCRIPTION_ROUTER_DEPLOYMENT_ID,
+            api_path=_TRANSCRIPTION_RUNS_PATH,
+            per_file=True,
             interval_min=1,
-            # The voicenotes ingest flow runs cleanup inline at the
-            # end of every cycle, so this single mode covers both
-            # ingest and routine retention sweeping. The separate
-            # `voicenotes-cleanup` mode is reachable from the Prefect
-            # UI for manual operator sweeps but is not watcher-driven.
+            # Each voice-note run ends with the retention sweep, so this one
+            # mode covers ingest and routine cleanup. `voicenotes-cleanup`
+            # stays reachable through the API for an operator's manual
+            # sweep but is not watcher-driven.
             parameters={"mode": "voicenotes"},
         ),
     ]
-
-
-# generate-summaries and update-dj-set-collection are triggered
-# manually or via Prefect schedules, not by Drive file drops
-# Add them here if you want Drive-triggered runs for those too
-# Deployment 'update-dj-set-collection/update-deejay-set-collection'
-# id 'cad08633-d2c8-4873-b2ab-d34714b042e9'.
-# Deployment 'generate-summaries/generate-summaries'
-# id 'b532f160-1731-43c9-a1f6-9c7eca474a92'.

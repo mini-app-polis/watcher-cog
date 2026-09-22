@@ -1,14 +1,14 @@
 """API trigger client.
 
-Asks api-kaianolevine-com to start a cog's work, for cogs that have moved
-off Prefect onto their own queue. The API is the fleet's only producer:
-it enqueues onto the cog's queue and answers 202 with the message id.
+Asks api-kaianolevine-com to start a cog's work. This is watcher's only
+trigger: the API is the fleet's only producer, and it enqueues onto the
+cog's queue and answers 202 with the message id.
 
 Authenticates as ``watcher-cog`` with ``WATCHER_COG_API_KEY`` — the same
 key the run reports already use — and posts to the base URL for this
 environment (``KAIANO_API_BASE_URL``, or ``_DEV`` outside production).
 
-**Gated to production, like the Prefect trigger.** A development watcher
+**Gated to production.** A development watcher
 polls the same Drive folders production does, so anything it fires is a
 second trigger for production's uploads. This was first left ungated on the
 reasoning that a dev watcher reaches the dev API, which enqueues onto a
@@ -40,8 +40,7 @@ async def fire(path: str, parameters: dict[str, object] | None = None) -> str | 
     """POST ``parameters`` to ``path`` and return the queue message id.
 
     Returns ``None`` without calling anything outside production, which the
-    watcher loop already reports as "Would trigger" — the same contract as
-    :func:`watcher_cog.prefect_trigger.fire`.
+    watcher loop reports as "Would trigger".
 
     ``KaianoApiClient`` is synchronous and does network I/O, so the call
     goes to a thread; every watcher shares this event loop.

@@ -4,7 +4,9 @@ Date: 2026-03-15
 
 ## Status
 
-Superseded 2026-04-23 — see Update below.
+Superseded 2026-04-23 — see Update below. Superseded again 2026-09-21 by
+[ADR-004](./ADR-004-api-trigger-per-file.md): watcher no longer calls Prefect
+at all.
 
 ## Context
 
