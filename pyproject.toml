@@ -13,6 +13,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "mypy",
     "pre-commit",
     "pytest",
     "pytest-asyncio",
@@ -36,6 +37,11 @@ select = ["E", "F", "I", "B", "UP", "ASYNC", "ANN"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
 
 [tool.hatch.version]
 path = "src/watcher_cog/_version.py"

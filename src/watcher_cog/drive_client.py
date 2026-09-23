@@ -4,15 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from mini_app_polis.google import GoogleAPI
+from mini_app_polis.google.types import DriveFile
+
 from watcher_cog.logger import log
-
-try:
-    from mini_app_polis.google import GoogleAPI
-    from mini_app_polis.google.types import DriveFile
-except ImportError:  # pragma: no cover
-    GoogleAPI = None  # type: ignore[assignment]
-    DriveFile = object  # type: ignore[assignment,misc]
-
 
 _google_api: GoogleAPI | None = None
 
@@ -25,9 +20,6 @@ def _get_google_api() -> GoogleAPI:
     global _google_api
     if _google_api is not None:
         return _google_api
-
-    if GoogleAPI is None:
-        raise RuntimeError("common-python-utils is required to use drive_client")
 
     try:
         _google_api = GoogleAPI.from_env()
