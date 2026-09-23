@@ -37,6 +37,9 @@ jobs:
       - run: uv sync
       - run: uv run ruff check src tests
       - run: uv run ruff format --check src tests
+      # TEST-012. mypy was never run here, so nothing said the repo had
+      # never been typechecked.
+      - run: uv run mypy src/
       - run: uv run pytest --cov=watcher_cog --cov-report=term-missing
 
   release:
