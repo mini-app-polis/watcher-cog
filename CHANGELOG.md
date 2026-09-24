@@ -1,3 +1,10 @@
+## [1.18.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.18.0...v1.18.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **deps:** require common-utils 5.13.1 ([2160751](https://github.com/mini-app-polis/watcher-cog/commit/2160751b9385cd2b0f0a07826de4d9b139b02c89))
+
 # [1.18.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.17.3...v1.18.0) (2026-09-22)
 
 
