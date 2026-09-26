@@ -1,3 +1,10 @@
+## [1.19.2](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.1...v1.19.2) (2026-09-26)
+
+
+### Bug Fixes
+
+* remove railway.json and the Railway notes ([2108aa2](https://github.com/mini-app-polis/watcher-cog/commit/2108aa28ae2555a718e85120995ce4db030ff095))
+
 ## [1.19.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.0...v1.19.1) (2026-09-26)
 
 
