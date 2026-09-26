@@ -1,3 +1,10 @@
+# [1.19.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.18.1...v1.19.0) (2026-09-26)
+
+
+### Features
+
+* run as a stateless scheduled Lambda ([f4bbb70](https://github.com/mini-app-polis/watcher-cog/commit/f4bbb701175f2723e67d9d6a6633497dd38d69b6))
+
 ## [1.18.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.18.0...v1.18.1) (2026-09-24)
 
 
