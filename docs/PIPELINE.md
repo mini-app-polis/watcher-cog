@@ -6,10 +6,12 @@ It sits between Google Drive and api-kaianolevine-com.
 ## Where it fits
 
 File appears in watched Drive folder
--> watcher-cog detects change (1-minute poll via Drive API)
+-> watcher-cog lists the folder (a Lambda tick, every minute)
 -> watcher-cog POSTs the owning cog's runs route on api-kaianolevine-com
-   (once per folder change, or once per changed file for a `per_file` watcher)
--> the API enqueues onto that cog's SQS queue
+   with every file present (once for the folder, or once per file for a
+   `per_file` watcher)
+-> the API claims each file and enqueues onto that cog's SQS queue only
+   when a claim is new, so the every-minute repeats become one job
 -> the cog's Lambda function runs the job
 
 ## What it does not do

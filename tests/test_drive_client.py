@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -40,67 +39,6 @@ def test_list_folder_excludes_subfolders(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert captured["folder_id"] == "folder-1"
     assert captured["include_folders"] is False
-
-
-def test_get_file_modified_time_parses_iso(monkeypatch: pytest.MonkeyPatch) -> None:
-    response = {"modifiedTime": "2026-03-24T17:55:00.000Z"}
-
-    class FilesAPI:
-        def get(self, **kwargs) -> dict:  # noqa: ANN003
-            assert kwargs["fileId"] == "file-1"
-            assert kwargs["fields"] == "modifiedTime"
-            return self  # type: ignore[return-value]
-
-        def execute(self) -> dict[str, str]:
-            return response
-
-    google = SimpleNamespace(
-        drive=SimpleNamespace(service=SimpleNamespace(files=lambda: FilesAPI()))
-    )
-    monkeypatch.setattr(drive_client, "_google_api", google)
-
-    result = drive_client.get_file_modified_time("file-1")
-
-    assert result == datetime(2026, 3, 24, 17, 55, tzinfo=UTC)
-
-
-def test_parse_modified_time_normalizes_z_suffix_to_utc_offset() -> None:
-    """TEST-001: the parse transform replaces Drive's trailing 'Z' with
-    the '+00:00' offset that datetime.fromisoformat requires, and
-    returns a UTC-aware datetime of the expected shape."""
-    result = drive_client._parse_modified_time("2026-03-24T17:55:00.000Z")
-
-    assert isinstance(result, datetime)
-    assert result == datetime(2026, 3, 24, 17, 55, tzinfo=UTC)
-    assert result.tzinfo is not None
-    assert result.utcoffset().total_seconds() == 0
-
-
-def test_parse_modified_time_handles_explicit_offset() -> None:
-    """The parse transform passes through explicit offsets unchanged."""
-    result = drive_client._parse_modified_time("2026-03-24T12:55:00.000-05:00")
-
-    assert isinstance(result, datetime)
-    # Same instant as 17:55 UTC.
-    assert result.astimezone(UTC) == datetime(2026, 3, 24, 17, 55, tzinfo=UTC)
-
-
-def test_get_file_modified_time_returns_none_when_not_found(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class FilesAPI:
-        def get(self, **kwargs) -> dict:  # noqa: ANN003
-            return self  # type: ignore[return-value]
-
-        def execute(self) -> dict[str, str]:
-            raise RuntimeError("404 not found")
-
-    google = SimpleNamespace(
-        drive=SimpleNamespace(service=SimpleNamespace(files=lambda: FilesAPI()))
-    )
-    monkeypatch.setattr(drive_client, "_google_api", google)
-
-    assert drive_client.get_file_modified_time("missing") is None
 
 
 def test_get_google_api_resets_singleton_on_init_failure(

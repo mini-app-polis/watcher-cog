@@ -4,7 +4,7 @@ Date: 2026-03-15
 
 ## Status
 
-Accepted
+Superseded by [ADR-005](./ADR-005-stateless-scheduled-watcher.md)
 
 ## Context
 
