@@ -1,3 +1,10 @@
+## [1.19.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.0...v1.19.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* **ci:** deploy as a scheduled function ([dcc70b9](https://github.com/mini-app-polis/watcher-cog/commit/dcc70b9e626563718352bf1c21400cc6ab3af20a))
+
 # [1.19.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.18.1...v1.19.0) (2026-09-26)
 
 
