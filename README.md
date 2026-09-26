@@ -70,11 +70,27 @@ Environment (loaded from SSM Parameter Store at cold start in Lambda; from `.env
 
 ---
 
+## Running locally
+
+Requires Python 3.11+ and [uv](https://github.com/astral-sh/uv).
+
+```bash
+uv sync
+cp .env.example .env   # fill in the values, or run under `doppler run --`
+uv run python -m watcher_cog.main --once
+```
+
+`--once` runs a single tick. Outside production every trigger and the
+heartbeat are suppressed, so a local tick lists the real folders and logs
+what it would have asked for without starting any work.
+
+---
+
 ## Deployment
 
 The function, its schedule, its error alarm and its deploy role are declared in `mini-app-polis/infra` (`module "watcher"`, `modules/scheduled-worker`). This repository owns only the code, and CI deploys it on each release with the shared `lambda-deploy.yml`. The handler is `watcher_cog.handler.lambda_handler`.
 
-`python -m watcher_cog.main` runs the same tick in a loop every minute — the Railway start command, kept only until the Lambda schedule is switched on. `--once` runs a single tick, which is how to exercise it locally under `doppler run`.
+`python -m watcher_cog.main` without `--once` runs the same tick every minute, for exercising the loop by hand.
 
 ---
 
@@ -103,7 +119,7 @@ src/watcher_cog/
 ├── drive_client.py   # Google Drive listing
 ├── heartbeat.py      # Healthchecks.io ping
 ├── config.py         # WatcherConfig and the watcher list
-└── main.py           # local / interim Railway runner
+└── main.py           # run a tick locally (--once) or every minute
 ```
 
 ---
