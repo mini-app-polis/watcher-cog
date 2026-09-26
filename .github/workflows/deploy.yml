@@ -1,0 +1,34 @@
+name: Deploy
+
+# Deploy an existing release tag by hand. CI deploys each release as it is
+# cut, but only from the tag that attempt produced: if the deploy fails
+# after the release (credentials not yet configured, AWS unavailable), a
+# re-run finds nothing new to release, records no tag and skips the deploy.
+# This is the way back in. It builds exactly what the tag holds, through
+# the same shared workflow and guards.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to deploy, e.g. v1.19.1"
+        type: string
+        required: true
+
+jobs:
+  deploy:
+    permissions:
+      id-token: write
+      contents: read
+    uses: mini-app-polis/.github/.github/workflows/lambda-deploy.yml@v3
+    with:
+      ref: ${{ inputs.tag }}
+      # These match the deploy job in ci.yml and module "watcher" in
+      # mini-app-polis/infra.
+      handler: watcher_cog.handler.lambda_handler
+      architecture: arm64
+      trigger: schedule
+      python-version: "3.11"
+      role-arn: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+      region: ${{ vars.AWS_REGION }}
+      function-name: ${{ vars.AWS_FUNCTION_NAME }}
