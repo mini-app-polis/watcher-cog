@@ -2,10 +2,9 @@
 
 ``python -m watcher_cog.main --once`` runs a single tick, which is how to
 exercise it locally under ``doppler run``. Without ``--once`` it ticks every
-minute forever — the Railway service's start command, kept so the old
-deployment keeps watching until the Lambda schedule is switched on and the
-service is deleted. The two can overlap safely: the API's dispatch claims
-make a second asker a no-op.
+minute until stopped. In production the Lambda schedule does the ticking;
+running this beside it is safe, because the API's dispatch claims make a
+second asker a no-op.
 """
 
 from __future__ import annotations

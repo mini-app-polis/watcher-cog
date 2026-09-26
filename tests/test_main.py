@@ -23,7 +23,7 @@ class _Stop(Exception):
 def test_the_loop_keeps_ticking_through_a_failed_tick(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The Railway runner until cutover: a bad tick must not end the process."""
+    """Run by hand in a loop, a bad tick must not end the process."""
     run_once = MagicMock(side_effect=[RuntimeError("drive down"), None])
     monkeypatch.setattr(handler, "run_once", run_once)
     sleeps: list[float] = []
