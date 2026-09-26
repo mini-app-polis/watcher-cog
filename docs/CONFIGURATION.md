@@ -18,23 +18,18 @@ for the full list with descriptions.
 Watchers are defined in src/watcher_cog/config.py as a list of
 WatcherConfig dataclasses. See README.md for full field documentation.
 
-Each watcher's target is an API route, `api_path`. Watcher POSTs
-`parameters` to it as `watcher-cog` (`WATCHER_COG_API_KEY`), and the API
-enqueues onto the owning cog's queue. `parameters` pins the cog's `mode`.
-A `per_file` watcher posts once per changed file and adds `drive_file_id`
-to the body; the others post once for the folder. Examples:
+Each watcher's target is an API route, `api_path`. Every tick, watcher
+POSTs `parameters` to it as `watcher-cog` (`WATCHER_COG_API_KEY`) with the
+files currently in the folder, and the API claims each file and enqueues
+onto the owning cog's queue only when a claim is new. `parameters` pins the
+cog's `mode`. Examples:
 
-- `dj-sets` and `live-history` POST `/v1/deejay/runs` once per change,
-  with `{"mode": "process-new-files"}` and `{"mode": "ingest-live-history"}`
-  respectively. deejay-cog's job is a sweep of the folder.
-- `wcs-notes` and `voice-notes` POST `/v1/transcription/runs` once per
-  changed file, with `{"mode": "wcs-transcripts", "drive_file_id": ...}`
-  and `{"mode": "voicenotes", "drive_file_id": ...}` respectively.
-  transcription-cog's job is one file, because a sweep of its folder does
-  not fit in one Lambda invocation. Because they can name files, these two
-  also ask for whatever is already in their folder when watcher starts,
-  rather than baselining it. See
-  [ADR-004](decisions/ADR-004-api-trigger-per-file.md).
+- `dj-sets` and `live-history` POST `/v1/deejay/runs` once per tick, naming
+  every file in `drive_files`. deejay-cog's job is a sweep of the folder.
+  live-history's sheets never leave their folder, so each is named with its
+  modifiedTime and claimed once per version (`drained_by_downstream=False`).
+- `wcs-notes` and `voice-notes` POST `/v1/transcription/runs` once per file,
+  with `drive_file_id`. transcription-cog's job is one file, because a sweep
+  of its folder does not fit in one Lambda invocation.
 
-Both cogs used to be triggered as Prefect deployments. Prefect is retired,
-and no watcher can reach it.
+See [ADR-005](decisions/ADR-005-stateless-scheduled-watcher.md).

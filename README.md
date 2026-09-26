@@ -1,230 +1,109 @@
 # watcher-cog
 
-A lightweight, always-on service that watches Google Drive folders and asks api-kaianolevine-com to run the cog that owns a folder when files land in it. Built to replace Google Apps Script trigger chains with a single, observable, version-controlled Python service.
+A scheduled function that watches Google Drive folders and asks api-kaianolevine-com to run the cog that owns a folder when files are in it.
 
 ---
 
 ## Overview
 
-`watcher-cog` is a Railway worker service — no HTTP server, no queue, no framework. It runs a configurable set of folder watchers as concurrent async loops. Each watcher polls a Drive folder on a fixed interval, diffs against its last-known file set, and POSTs the owning cog's runs route when new or modified files are detected. The API enqueues the job onto that cog's queue.
+`watcher-cog` is a scheduled AWS Lambda function. Once a minute it lists each watched Drive folder and asks api-kaianolevine-com for the work that is there. The API claims each file it is told about and enqueues onto the owning cog's queue only when a claim is new, so asking for the same file every minute becomes one job.
 
 **What it does:**
-- Polls one or more Google Drive folders on a configurable interval
-- Detects new files by diffing against in-memory state
-- POSTs the owning cog's runs route when files change — once per folder change, or once per changed file for a `per_file` watcher
-- Phones home to a dead man's switch (Healthchecks.io) on every cycle
-- Logs structured output on every poll — folder checked, files found, trigger fired or skipped
+- Lists every watched folder once a minute, on an EventBridge schedule
+- POSTs the owning cog's runs route with what it finds — the files for a sweep cog, one request per file for a `per_file` cog
+- Reports to the runs channel when work was queued, and stays silent when every file was already claimed
+- Pings Healthchecks.io after every tick in which every folder was checked
 
 **What it does not do:**
+- Remember anything. There is no seen-set and no baseline: every tick asks for everything present, and the API's dispatch claims make the repeats no-ops
 - Process files — that is the responsibility of the cog it triggers
 - Write to a queue — the API is the fleet's only producer
-- Persist state — seen file IDs are held in memory; a restart re-discovers files from the last poll window
-- Serve HTTP — this is a worker process, not an API
-
-**Design principles:**
-- Config-driven — adding a new folder-to-flow mapping requires no code changes
-- Simple — the entire service is ~300 lines of Python
-- Observable — every cycle is logged; external services cover liveness and end-to-end correctness
 
 ---
 
-## Architecture
+## How a file becomes one job
 
 ```
-main.py
-├── Loads watcher config on startup
-├── Spawns one asyncio task per watcher
-└── asyncio.gather() — all watchers run concurrently
-
-Each watcher loop (while True):
-├── drive_client.py  — list files in folder (Google Drive API)
-├── Diff against seen_file_ids (in-memory set)
-├── api_trigger.py  — POST the cog's runs route on api-kaianolevine-com
-├── heartbeat.py  — ping HEALTHCHECKS_URL_WATCHER
-└── asyncio.sleep(interval_min * 60)
+tick (EventBridge, every minute)
+└── for each watcher
+    ├── drive_client.list_folder(folder)
+    ├── api_trigger.fire(api_path, body)   # body names the files
+    │     API: claim each file → enqueue if any claim is new → message id
+    │     or:  every file already claimed → deduplicated, earlier message id
+    └── report to runs if anything was queued
+heartbeat.ping()  # only if every folder was checked
 ```
 
-State is intentionally in-memory. On restart, each watcher re-fetches the current file list and resets its baseline. Files that arrived during a downtime window will be detected on the first poll after restart. If your downstream flows are idempotent (recommended), this is safe.
+The API owns the rules (`services/dispatch_claims.py` there):
 
----
+| Folder | Claim | A file still there later |
+|---|---|---|
+| Drained inbox (`drained_by_downstream=True`) — the cog moves a file out when done | by file id | Dispatched again after 6 hours, because its job has failed through every retry by then. After 3 dispatches it is given up on and reported once to the errors channel |
+| Edited in place (`drained_by_downstream=False`) — live-history's sheets | by file id and modifiedTime | Never re-dispatched; the next edit is a new version and a new job |
 
-## Requirements
-
-- Python 3.11+
-- [uv](https://github.com/astral-sh/uv) for dependency management
-- A Google Cloud project with the Drive API enabled
-- A service account with read access to the watched folders
-- A `WATCHER_COG_API_KEY` for api-kaianolevine-com, holding the trigger role for each cog watched
-- A [Healthchecks.io](https://healthchecks.io) account (free tier sufficient)
-- [Railway](https://railway.app) (or any always-on host) for deployment
-
----
-
-## Local development
-
-```bash
-# Clone and install dependencies
-git clone https://github.com/mini-app-polis/watcher-cog
-cd watcher-cog
-uv sync
-
-# Copy environment template and fill in values
-cp .env.example .env
-
-# Run locally
-uv run python src/watcher_cog/main.py
-```
+The retry is the file sitting in the folder: the dead-letter queue never needs redriving. To retry a file that was given up on, fix or move it and delete its `dispatch_claims` row.
 
 ---
 
 ## Configuration
 
-### Environment variables
-
-All configuration is via environment variables. Copy `.env.example` to `.env` for local development. In production, set these in your host's dashboard (Railway, Fly.io, etc.).
-
-| Variable | Required | Description |
-|---|---|---|
-| `GOOGLE_CREDENTIALS_JSON` | Yes | Service account credentials JSON (as a string, not a file path) |
-| `WATCHER_COG_API_KEY` | Yes | This cog's key for api-kaianolevine-com |
-| `HEALTHCHECKS_URL_WATCHER` | Yes | Healthchecks.io ping URL for this service |
-| `LOG_LEVEL` | No | `DEBUG`, `INFO` (default), `WARNING` |
-
-### Watcher config
-
-Watchers are defined in `src/watcher_cog/config.py` as a list of `WatcherConfig` dataclasses. Each entry maps one Drive folder to one API route.
-
-```python
-WATCHERS: list[WatcherConfig] = [
-    WatcherConfig(
-        name="dj-sets",
-        folder_id="1abc...xyz",  # Google Drive folder ID
-        api_path="/v1/deejay/runs",  # Route that enqueues the work
-        parameters={"mode": "process-new-files"},  # The request body
-        interval_min=1,  # Poll every N minutes
-    ),
-    WatcherConfig(
-        name="wcs-notes",
-        folder_id="1jkl...mno",
-        api_path="/v1/transcription/runs",
-        per_file=True,  # One request per changed file
-        parameters={"mode": "wcs-transcripts"},  # drive_file_id is added per file
-    ),
-    WatcherConfig(
-        name="live-history",
-        folder_id="1def...uvw",
-        api_path="/v1/deejay/runs",
-        parameters={"mode": "ingest-live-history"},
-        interval_min=1,
-        idle_interval_min=30,  # Back off when no activity signal
-        activity_signal="file_mod_time",  # "none" | "file_mod_time"
-        activity_file_id="1ghi...rst",  # File to check mod time against
-        activity_threshold_min=10,  # Minutes before considered idle
-    ),
-]
-```
-
-**`WatcherConfig` fields:**
+Watchers are defined in `src/watcher_cog/config.py`. Each `WatcherConfig` maps one Drive folder to one API route.
 
 | Field | Default | Description |
 |---|---|---|
-| `name` | required | Human-readable label used in logs |
-| `folder_id` | required | Google Drive folder ID to watch |
-| `api_path` | required | API route that enqueues the work, e.g. `/v1/deejay/runs`; `parameters` is the body |
-| `per_file` | `False` | Post once per changed file, adding `drive_file_id` to the body, rather than once for the folder. A per-file watcher on a drained folder also asks for the files already there at startup |
-| `interval_min` | `1` | Poll interval when active |
-| `idle_interval_min` | same as `interval_min` | Poll interval when idle (only used with activity signal) |
-| `activity_signal` | `"none"` | `"none"` for flat polling, `"file_mod_time"` for two-mode |
-| `activity_file_id` | `None` | Drive file ID to check modification time against |
-| `activity_threshold_min` | `10` | Minutes since last modification before switching to idle interval |
+| `name` | required | Label used in logs and reports |
+| `folder_id` | required | Google Drive folder ID |
+| `api_path` | required | API route that enqueues the work; `parameters` is the body |
+| `per_file` | `False` | One request per file, adding `drive_file_id`, rather than one request naming every file in `drive_files`. For a cog whose job is one file |
+| `drained_by_downstream` | `True` | Whether the cog moves files out when done. `False` claims each version instead of each file |
+| `parameters` | `{}` | The request body, e.g. `{"mode": "process-new-files"}` |
 
-**Adding a new watcher** is a single `WatcherConfig` entry in `config.py` — no other code changes required.
+Environment (loaded from SSM Parameter Store at cold start in Lambda; from `.env` locally):
 
----
-
-## Activity signals
-
-Most watchers run on a flat interval (`activity_signal: "none"`). The `"file_mod_time"` signal exists for use cases where a known file is written to continuously during an active session (e.g. a DJ application writing a live history file). When the file's modification time is within `activity_threshold_min` minutes, the watcher uses `interval_min`. When it hasn't been touched recently, it backs off to `idle_interval_min`.
-
-This reduces unnecessary trigger calls when the source application is not running, while maintaining fast response when it is.
+| Variable | Description |
+|---|---|
+| `GOOGLE_CREDENTIALS_JSON` | Service account credentials JSON, as a string |
+| `WATCHER_COG_API_KEY` | This cog's key for api-kaianolevine-com |
+| `HEALTHCHECKS_URL_WATCHER` | Healthchecks.io ping URL |
+| `CSV_SOURCE_FOLDER_ID`, `NOTES_INPUT_FOLDER_ID`, `GOOGLE_DRIVE_VOICE_INBOX_FOLDER_ID` | Watched folders |
+| `SENTRY_DSN`, `LOG_LEVEL` | Optional |
 
 ---
 
 ## Deployment
 
-### Railway
+The function, its schedule, its error alarm and its deploy role are declared in `mini-app-polis/infra` (`module "watcher"`, `modules/scheduled-worker`). This repository owns only the code, and CI deploys it on each release with the shared `lambda-deploy.yml`. The handler is `watcher_cog.handler.lambda_handler`.
 
-1. Create a new Railway project (or add a service to an existing project)
-2. Connect your GitHub repo
-3. Set all environment variables in the Railway dashboard
-4. Railway will deploy automatically on push to `main`
-
-The service has no `PORT` — Railway detects this and runs it as a worker. No `Procfile` or special config needed beyond the environment variables.
-
-### Other hosts
-
-Any host that can run a persistent Python process works. The service has no web server and no port binding. Run it with:
-
-```bash
-uv run python src/watcher_cog/main.py
-```
-
----
-
-## Post-deploy setup
-
-Two things outside this codebase cover observability. Only the first needs setup for this service, in an external dashboard.
-
-### 1. Healthchecks.io — process heartbeat
-
-The watcher pings Healthchecks.io on every poll cycle. If it goes silent, you get an email alert.
-
-**Setup:**
-1. Create a free account at [healthchecks.io](https://healthchecks.io)
-2. Create a new check with these settings:
-   - **Name:** `watcher-cog` (or your preferred label)
-   - **Period:** 1 minute
-   - **Grace time:** 5 minutes
-3. Copy the ping URL (format: `https://hc-ping.com/your-uuid`)
-4. Set `HEALTHCHECKS_URL_WATCHER=<ping url>` in your environment
-
-**What this catches:** the watcher process dying, hanging, or Railway failing to restart it within the grace window.
-
-**Why not in code:** The ping URL is the credential on the free tier. It belongs in env vars alongside your other secrets, not hardcoded.
-
-### 2. Dead-letter alarms — end-to-end correctness
-
-A running watcher process is a necessary but not sufficient condition for correct operation. A trigger the API refuses is reported by this cog as an ERROR and retried on the next cycle. A job that reaches a cog's queue and fails every retry lands in that cog's dead-letter queue, whose CloudWatch alarm is declared in the cog's own `infra/`. Nothing about that is configured here.
+`python -m watcher_cog.main` runs the same tick in a loop every minute — the Railway start command, kept only until the Lambda schedule is switched on. `--once` runs a single tick, which is how to exercise it locally under `doppler run`.
 
 ---
 
 ## Observability
 
-| Layer | Tool | What it covers |
+| Signal | Tool | What it covers |
 |---|---|---|
-| Process liveness | Healthchecks.io | Is the watcher process running and looping? |
-| End-to-end correctness | Trigger ERROR reports here; each cog's dead-letter alarm | Did the API take the work, and did the job finish? |
-| Crash recovery | Railway auto-restart | Does the process come back after an unhandled exception? |
-| Per-cycle detail | Structured logs (Railway log viewer) | What happened on each poll — useful for debugging |
+| Silence | Healthchecks.io (1-minute period, 5-minute grace) | Nothing is invoking the function, or every tick is failing |
+| Failing ticks | CloudWatch alarm `watcher-failing` → email | 3 failed ticks in 5 minutes; notifies once on the way into ALARM and once back out |
+| Why it failed | Sentry, and the function's log group | Which folder, which request |
+| Work started | Runs channel | One report per tick that queued anything |
+| Work that never finished | The file is still in its folder; each cog's dead-letter alarm | Dispatched again after 6 hours; given up on after 3 |
+
+A tick checks every folder even when one fails, then raises, so one broken folder does not stop the others and still marks the tick as failed.
 
 ---
 
 ## Project structure
 
 ```
-watcher-cog/
-├── src/
-│   └── watcher_cog/
-│       ├── main.py            # Entry point — loads config, starts watcher tasks
-│       ├── config.py          # WatcherConfig dataclass + WATCHERS list
-│       ├── watcher.py         # Core watcher loop logic
-│       ├── drive_client.py    # Google Drive API wrapper
-│       ├── api_trigger.py     # POST the owning cog's runs route
-│       └── heartbeat.py       # Healthchecks.io ping
-├── tests/
-├── .env.example
-├── pyproject.toml
-└── README.md
+src/watcher_cog/
+├── __init__.py       # loads SSM secrets at import
+├── handler.py        # Lambda entry point: one tick over every watcher
+├── watcher.py        # one folder: list it, ask for what is there
+├── api_trigger.py    # POST the owning cog's runs route
+├── drive_client.py   # Google Drive listing
+├── heartbeat.py      # Healthchecks.io ping
+├── config.py         # WatcherConfig and the watcher list
+└── main.py           # local / interim Railway runner
 ```
 
 ---

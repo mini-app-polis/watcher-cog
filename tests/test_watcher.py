@@ -1,1268 +1,182 @@
 from __future__ import annotations
 
-import dataclasses
-from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
-import watcher_cog.watcher as watcher_module
+from watcher_cog import watcher
+from watcher_cog.api_trigger import Fired
 from watcher_cog.config import WatcherConfig
-from watcher_cog.watcher import _baseline_concern, run_watcher
 
 
-class LoopExit(Exception):
-    pass
-
-
-def _file(file_id: str = "f", *, modified_time: str | None = None) -> SimpleNamespace:
+def _file(file_id: str, modified_time: str | None = None) -> SimpleNamespace:
     return SimpleNamespace(
-        id=file_id, name=f"{file_id}.txt", mime_type=None, modified_time=modified_time
+        id=file_id, name=f"{file_id}.txt", modified_time=modified_time
     )
 
 
 def _cfg(**kwargs: object) -> WatcherConfig:
-    return WatcherConfig(
-        name="w", folder_id="folder", api_path="/v1/dep/runs", **kwargs
-    )  # type: ignore[arg-type]
+    kwargs.setdefault("parameters", {"mode": "m"})
+    return WatcherConfig(name="w", folder_id="folder", api_path="/v1/x/runs", **kwargs)  # type: ignore[arg-type]
 
 
-def _now() -> datetime:
-    return datetime.now(UTC)
-
-
-def _iso(dt: datetime) -> str:
-    return dt.isoformat().replace("+00:00", "Z")
-
-
-def _make_sleep(
-    stop_after_calls: int,
-    calls: list[float],
-) -> Callable[[float], Awaitable[None]]:
-    async def _sleep(seconds: float) -> None:
-        calls.append(seconds)
-        if len(calls) >= stop_after_calls:
-            raise LoopExit()
-
-    return _sleep
-
-
-@pytest.mark.asyncio
-async def test_first_run_initializes_without_trigger(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def list_folder(_: str) -> list:
-        return [_file("a"), _file("b")]
-
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", list_folder)
-    fire = AsyncMock()
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", fire)
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    sleep_calls: list[float] = []
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(1, sleep_calls))
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=2
+@pytest.fixture
+def world(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """A folder, the API, and the run-report channel, all fake."""
+    state = SimpleNamespace(
+        files=[],
+        fire=MagicMock(return_value=Fired(message_id="m-1")),
+        report=MagicMock(),
     )
+    monkeypatch.setattr(watcher.drive_client, "list_folder", lambda _: state.files)
+    monkeypatch.setattr(watcher.api_trigger, "fire", state.fire)
+    monkeypatch.setattr(watcher, "post_run_finding", state.report)
+    return state
 
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
 
-    fire.assert_not_awaited()
-    assert sleep_calls == [120]
+# ── what is asked for ────────────────────────────────────────────────────
 
 
-@pytest.mark.asyncio
-async def test_second_run_no_new_files_no_trigger(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    folders = [[_file("a"), _file("b")], [_file("a"), _file("b")]]
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
-    )
-    fire = AsyncMock()
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", fire)
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    sleep_calls: list[float] = []
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, sleep_calls))
+def test_an_empty_folder_asks_for_nothing(world: SimpleNamespace) -> None:
+    result = watcher.check(_cfg())
 
-    config = WatcherConfig(name="w1", folder_id="folder", api_path="/v1/dep/runs")
+    assert result == watcher.Check(watcher="w")
+    world.fire.assert_not_called()
+    world.report.assert_not_called()
 
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
 
-    fire.assert_not_awaited()
-    assert sleep_calls == [60, 60]
+def test_a_sweep_watcher_names_every_file_in_one_ask(world: SimpleNamespace) -> None:
+    world.files = [_file("a"), _file("b")]
 
+    watcher.check(_cfg())
 
-@pytest.mark.asyncio
-async def test_second_run_with_new_files_fires_trigger(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    folders = [[_file("a"), _file("b")], [_file("a"), _file("b"), _file("c")]]
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
-    )
-    fire = AsyncMock()
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", fire)
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    sleep_calls: list[float] = []
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, sleep_calls))
-
-    config = WatcherConfig(name="w1", folder_id="folder", api_path="/v1/dep/runs")
-
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    # Default WatcherConfig has parameters={}; the trigger forwards it.
-    fire.assert_awaited_once_with("/v1/dep/runs", parameters={})
-    assert sleep_calls == [60, 60]
-
-
-@pytest.mark.asyncio
-async def test_poll_error_caught_and_loop_continues(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def _list_folder(_: str) -> list:
-        if _list_folder.calls == 0:
-            _list_folder.calls += 1
-            raise RuntimeError("boom")
-        _list_folder.calls += 1
-        return [_file("a")]
-
-    _list_folder.calls = 0
-
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _list_folder)
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", AsyncMock())
-    ping = AsyncMock()
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", ping)
-    sleep_calls: list[float] = []
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, sleep_calls))
-    logger = MagicMock()
-    monkeypatch.setattr(watcher_module, "log", logger)
-
-    config = WatcherConfig(name="w1", folder_id="folder", api_path="/v1/dep/runs")
-
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    assert _list_folder.calls == 2
-    logger.error.assert_called_once()
-    # One ping, not two: the failed cycle did no work, and Healthchecks
-    # fires on absence, so a ping from a cycle that raised would keep the
-    # check green through an outage.
-    assert ping.await_count == 1
-
-
-@pytest.mark.asyncio
-async def test_activity_signal_recent_file_uses_active_interval(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: [_file("a")]
-    )
-    monkeypatch.setattr(
-        watcher_module.drive_client,
-        "get_file_modified_time",
-        lambda _: datetime.now(UTC) - timedelta(minutes=1),
-    )
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", AsyncMock())
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    sleep_calls: list[float] = []
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(1, sleep_calls))
-
-    config = WatcherConfig(
-        name="w1",
-        folder_id="folder",
-        api_path="/v1/dep/runs",
-        interval_min=2,
-        idle_interval_min=10,
-        activity_signal="file_mod_time",
-        activity_file_id="signal-file",
-        activity_threshold_min=10,
-    )
-
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    assert sleep_calls == [120]
-
-
-@pytest.mark.asyncio
-async def test_activity_signal_old_file_uses_idle_interval(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: [_file("a")]
-    )
-    monkeypatch.setattr(
-        watcher_module.drive_client,
-        "get_file_modified_time",
-        lambda _: datetime.now(UTC) - timedelta(minutes=30),
-    )
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", AsyncMock())
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    sleep_calls: list[float] = []
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(1, sleep_calls))
-
-    config = WatcherConfig(
-        name="w1",
-        folder_id="folder",
-        api_path="/v1/dep/runs",
-        interval_min=2,
-        idle_interval_min=10,
-        activity_signal="file_mod_time",
-        activity_file_id="signal-file",
-        activity_threshold_min=10,
-    )
-
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    assert sleep_calls == [600]
-
-
-def test_watcher_config_dataclass_field_set() -> None:
-    """TEST-004: assert WatcherConfig exposes exactly the expected
-    field set. A silent add/remove of a config field would pass the
-    constructor-call tests without this check."""
-    fields = {f.name for f in dataclasses.fields(WatcherConfig)}
-    assert fields == {
-        "name",
-        "folder_id",
-        "api_path",
-        "per_file",
-        "interval_min",
-        "idle_interval_min",
-        "activity_signal",
-        "activity_file_id",
-        "activity_threshold_min",
-        "drained_by_downstream",
-        "baseline_recent_change_min",
-        "parameters",
-    }
-
-
-def test_watcher_config_default_values() -> None:
-    """Shape-adjacent: defaults are stable across the optional fields.
-    Catches a change like flipping a default that would silently alter
-    the trigger cadence for existing watchers."""
-    config = WatcherConfig(name="w", folder_id="f", api_path="/v1/d/runs")
-
-    assert config.interval_min == 1
-    assert config.idle_interval_min == 1
-    assert config.activity_signal == "none"
-    assert config.activity_file_id is None
-    assert config.activity_threshold_min == 10
-    assert config.drained_by_downstream is True
-    assert config.baseline_recent_change_min == 15
-    assert config.parameters == {}
-    assert config.per_file is False
-
-
-# ---------------------------------------------------------------------------
-# Reporting
-# ---------------------------------------------------------------------------
-#
-# What this cog reports is deliberately narrow: the moment a trigger fires
-# (work entering the pipeline, which nothing else outside the target records),
-# and the moment polling breaks. Everything else is the steady state.
-
-
-class _Sent(list):
-    """What the fake reporter captured, as (severity, text, notable) tuples.
-
-    A list so every existing caller unpacks it unchanged, with the run ids
-    alongside for the tests that care about them.
-    """
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.run_ids: list[str | None] = []
-
-
-def _patch_report(monkeypatch: pytest.MonkeyPatch, *, lands: bool = True) -> _Sent:
-    """Capture (severity, text, notable) for every report the loop makes.
-
-    The double returns a bool because the real ``_report`` does, and the
-    loop's failure suppression turns on that value. A double returning
-    ``None`` would put every test on the undelivered path by accident.
-    Pass ``lands=False`` to exercise that path deliberately.
-    """
-    sent = _Sent()
-    run_ids = sent.run_ids
-
-    async def _fake_report(
-        config: WatcherConfig,
-        severity: str,
-        text: str,
-        *,
-        notable: bool = False,
-        run_id: str | None = None,
-    ) -> bool:
-        sent.append((severity, text, notable))
-        run_ids.append(run_id)
-        return lands
-
-    monkeypatch.setattr(watcher_module, "_report", _fake_report)
-    return sent
-
-
-@pytest.mark.asyncio
-async def test_trigger_fired_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
-    # First cycle sees an empty folder so there is no baseline report to
-    # separate from the one under test.
-    folders = [[], [_file("b")]]
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
-    )
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", AsyncMock())
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, []))
-    sent = _patch_report(monkeypatch)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    assert len(sent) == 1
-    severity, text, notable = sent[0]
-    assert severity == "SUCCESS"
-    assert notable is True
-    assert "1 new" in text
-
-
-@pytest.mark.asyncio
-async def test_fired_trigger_reports_as_triggered(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A real fire says so — both in the log and in the finding."""
-    folders = [[], [_file("b")]]
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
-    )
-    monkeypatch.setattr(
-        watcher_module.api_trigger, "fire", AsyncMock(return_value="m-1")
-    )
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, []))
-    logger = MagicMock()
-    monkeypatch.setattr(watcher_module, "log", logger)
-    sent = _patch_report(monkeypatch)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    assert sent[0][1].startswith("Triggered")
-    info_args = [c.args for c in logger.info.call_args_list]
-    assert any(any("trigger fired" in str(a) for a in args) for args in info_args)
-
-
-@pytest.mark.asyncio
-async def test_suppressed_trigger_reports_as_would_trigger(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A suppressed fire must not be described as a fire."""
-    folders = [[], [_file("b")]]
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
-    )
-    monkeypatch.setattr(
-        watcher_module.api_trigger, "fire", AsyncMock(return_value=None)
-    )
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, []))
-    logger = MagicMock()
-    monkeypatch.setattr(watcher_module, "log", logger)
-    sent = _patch_report(monkeypatch)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    assert sent[0][1].startswith("Would trigger")
-    info_args = [c.args for c in logger.info.call_args_list]
-    assert any(any("trigger suppressed" in str(a) for a in args) for args in info_args)
-
-
-@pytest.mark.asyncio
-async def test_quiet_poll_reports_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The steady state says nothing at all.
-
-    Cycle 1 baselines the existing file and says so; cycle 2 is the quiet
-    poll and must add nothing to that.
-    """
-    folders = [[_file("a")], [_file("a")]]
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
-    )
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", AsyncMock())
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, []))
-    sent = _patch_report(monkeypatch)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    assert [s[0] for s in sent] == ["WARN"]
-    assert "Baselined" in sent[0][1]
-
-
-@pytest.mark.asyncio
-async def test_only_the_first_failure_of_a_streak_is_reported(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A Drive outage is one message, not one per minute.
-
-    This is the property that decides whether the channel is still worth
-    reading during an incident. Suppression is per cause, so this covers
-    repeats of a poll failure specifically.
-    """
-
-    def _boom(_: str) -> list:
-        raise RuntimeError("drive is down")
-
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _boom)
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", AsyncMock())
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(4, []))
-    sent = _patch_report(monkeypatch)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    assert len(sent) == 1
-    assert sent[0][0] == "ERROR"
-    assert "drive is down" in sent[0][1]
-
-
-@pytest.mark.asyncio
-async def test_recovery_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The other half of the streak: you are told when it comes back."""
-    calls = {"n": 0}
-
-    def _flaky(_: str) -> list:
-        calls["n"] += 1
-        if calls["n"] <= 2:
-            raise RuntimeError("drive is down")
-        return [_file("a")]
-
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _flaky)
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", AsyncMock())
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
-    sent = _patch_report(monkeypatch)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    # The third cycle is also the first that reached Drive, so it
-    # baselines the folder before reporting the recovery.
-    assert [s[0] for s in sent] == ["ERROR", "WARN", "SUCCESS"]
-    assert "Baselined" in sent[1][1]
-    assert "poll recovered after 2" in sent[2][1]
-
-
-@pytest.mark.asyncio
-async def test_trigger_failure_names_the_target_not_the_folder(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A run that never started is not a poll that never read."""
-    folders = [[], [_file("b")]]
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
-    )
-
-    async def _boom(path, parameters=None) -> None:  # noqa: ANN001
-        raise RuntimeError("api unreachable")
-
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", _boom)
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, []))
-    sent = _patch_report(monkeypatch)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    assert len(sent) == 1
-    severity, text, _notable = sent[0]
-    assert severity == "ERROR"
-    assert "Trigger failed" in text
-    assert "dep" in text
-    assert "api unreachable" in text
-    assert "Poll failed" not in text
-
-
-@pytest.mark.asyncio
-async def test_a_new_cause_breaks_through_the_streak(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A Drive outage already reported must not silence a trigger failure."""
-    calls = {"n": 0}
-
-    def _list_folder(_: str) -> list:
-        calls["n"] += 1
-        if calls["n"] == 2:
-            raise RuntimeError("drive is down")
-        if calls["n"] == 1:
-            return [_file("a")]
-        return [_file("a"), _file("b")]
-
-    async def _boom(path, parameters=None) -> None:  # noqa: ANN001
-        raise RuntimeError("api unreachable")
-
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _list_folder)
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", _boom)
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
-    sent = _patch_report(monkeypatch)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    texts = [text for _sev, text, _notable in sent]
-    assert any("Poll failed" in t for t in texts)
-    assert any("Trigger failed" in t for t in texts)
-
-
-@pytest.mark.asyncio
-async def test_repeats_of_the_same_cause_stay_suppressed(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Three failing triggers in a row are still one message.
-
-    The poll side of this is covered above; this is the same property on
-    the branch that did not exist before. It also pins the retry: ``seen``
-    is not advanced on a failed trigger, so every cycle sees the same new
-    file and tries to fire again.
-    """
-    calls = {"n": 0}
-    fired = {"n": 0}
-
-    def _list_folder(_: str) -> list:
-        calls["n"] += 1
-        if calls["n"] == 1:
-            return []
-        return [_file("b")]
-
-    async def _boom(path, parameters=None) -> None:  # noqa: ANN001
-        fired["n"] += 1
-        raise RuntimeError("api unreachable")
-
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _list_folder)
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", _boom)
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(4, []))
-    sent = _patch_report(monkeypatch)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    assert fired["n"] == 3
-    assert sum(1 for _sev, t, _notable in sent if "Trigger failed" in t) == 1
-
-
-@pytest.mark.asyncio
-async def test_heartbeat_is_not_pinged_on_a_failed_cycle(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A cycle that raised did no work, and Healthchecks must not hear otherwise.
-
-    The ping used to be in a `finally`, so it fired on every cycle
-    including the ones that raised. Expired credentials could keep the
-    check green indefinitely while the folder went unwatched — the
-    absence detector reporting that the loop is spinning, not that it is
-    working.
-    """
-
-    def _boom(_: str) -> list:
-        raise RuntimeError("drive is down")
-
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _boom)
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", AsyncMock())
-    ping = AsyncMock()
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", ping)
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
-    _patch_report(monkeypatch)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    assert ping.await_count == 0
-
-
-@pytest.mark.asyncio
-async def test_baselining_a_non_empty_folder_is_reported(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A restart that swallows pending files says so.
-
-    Files present on the first poll are the baseline and will never fire
-    a trigger. On a first-ever start that is correct; on a restart it
-    means anything that landed during the redeploy is invisible, and
-    downstream archives files out of this folder, so invisible means
-    unprocessed.
-    """
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: [_file("a"), _file("b")]
-    )
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", AsyncMock())
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(1, []))
-    sent = _patch_report(monkeypatch)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    assert len(sent) == 1
-    severity, text, notable = sent[0]
-    assert severity == "WARN"
-    assert notable is True
-    assert "Baselined 2 pending file(s)" in text
-    assert "folder" in text
-
-
-@pytest.mark.asyncio
-async def test_an_empty_folder_on_start_is_not_reported(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Nothing was swallowed, so there is nothing to say."""
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", lambda _: [])
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", AsyncMock())
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(1, []))
-    sent = _patch_report(monkeypatch)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    assert sent == []
-
-
-def test_drained_folder_warns_about_any_pending_file() -> None:
-    concern = _baseline_concern(_cfg(drained_by_downstream=True), [_file()], _now())
-    assert concern is not None
-
-
-def test_undrained_folder_is_silent_about_old_files() -> None:
-    """live-history's nineteen sheets are the steady state, not a backlog."""
-    old = _file(modified_time="2026-01-01T00:00:00Z")
-    assert _baseline_concern(_cfg(drained_by_downstream=False), [old], _now()) is None
-
-
-def test_undrained_folder_warns_about_a_recent_change() -> None:
-    """A sheet edited during the redeploy is a change that will not fire."""
-    recent = _file(modified_time=_iso(_now() - timedelta(minutes=2)))
-    assert _baseline_concern(_cfg(drained_by_downstream=False), [recent], _now())
-
-
-def test_empty_folder_is_always_silent() -> None:
-    assert _baseline_concern(_cfg(), [], _now()) is None
-
-
-@pytest.mark.asyncio
-async def test_undelivered_error_does_not_consume_the_suppression_slot(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """_report returning False leaves reported_kinds unset, so the next cycle retries.
-
-    An outage that takes down Drive and the API together used to be
-    completely silent: cycle 1's ERROR was swallowed by _report while the
-    streak advanced anyway, so every later cycle suppressed itself as a
-    repeat of a message nobody ever saw.
-    """
-
-    def _boom(_: str) -> list:
-        raise RuntimeError("drive is down")
-
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _boom)
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", AsyncMock())
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
-    sent = _patch_report(monkeypatch, lands=False)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    # Three cycles, three attempts — none of them landed, so none of them
-    # earned the right to silence the next one.
-    assert len(sent) == 3
-    assert all(s[0] == "ERROR" for s in sent)
-
-
-@pytest.mark.asyncio
-async def test_a_delivered_error_does_consume_the_slot(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The other half: a message that landed still suppresses its repeats."""
-
-    def _boom(_: str) -> list:
-        raise RuntimeError("drive is down")
-
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _boom)
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", AsyncMock())
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
-    sent = _patch_report(monkeypatch, lands=True)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    assert len(sent) == 1
-
-
-@pytest.mark.asyncio
-async def test_report_returns_whether_the_message_landed(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The loop's suppression is only as good as this return value."""
-    from mini_app_polis.pipeline_status import DeliveryReport
-
-    config = WatcherConfig(name="w1", folder_id="f", api_path="/v1/d/runs")
-
-    for result, expected in (
-        (DeliveryReport(sent=1), True),
-        (DeliveryReport(suppressed=1), True),
-        (DeliveryReport(failed=1), False),
-        (DeliveryReport(skipped=1), False),
-    ):
-        monkeypatch.setattr(
-            watcher_module, "post_run_finding", lambda *a, _r=result, **k: _r
-        )
-        assert await watcher_module._report(config, "ERROR", "x") is expected
-
-    def _explode(*args, **kwargs) -> None:  # noqa: ANN002, ANN003
-        raise RuntimeError("notify exploded")
-
-    monkeypatch.setattr(watcher_module, "post_run_finding", _explode)
-    assert await watcher_module._report(config, "ERROR", "x") is False
-
-
-@pytest.mark.asyncio
-async def test_report_never_breaks_the_loop(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Reporting is the least important thing this cog does."""
-    folders = [[_file("a")], [_file("a"), _file("b")]]
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
-    )
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", AsyncMock())
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    sleep_calls: list[float] = []
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, sleep_calls))
-
-    def _explode(*args, **kwargs) -> None:  # noqa: ANN002, ANN003
-        raise RuntimeError("notify exploded")
-
-    monkeypatch.setattr(watcher_module, "post_run_finding", _explode)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    # The loop completed both cycles despite reporting blowing up.
-    assert len(sleep_calls) == 2
-
-
-@pytest.mark.asyncio
-async def test_alternating_causes_report_once_each_not_every_cycle(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """poll, trigger, poll, trigger → two messages, not four.
-
-    The API refusing fires leaves ``seen`` unadvanced, so every successful
-    poll re-fires; with Drive also intermittently failing the cause flips
-    every minute. One slot for "last cause" treated each flip as new and
-    reported every cycle — the storm the set exists to prevent.
-    """
-    calls = {"n": 0}
-
-    def _list_folder(_: str) -> list:
-        calls["n"] += 1
-        # 1: baseline empty. Even cycles after that: Drive down.
-        # Odd cycles after that: folder has a pending file.
-        if calls["n"] == 1:
-            return []
-        if calls["n"] % 2 == 0:
-            raise RuntimeError("drive is down")
-        return [_file("b")]
-
-    async def _boom(path, parameters=None) -> None:  # noqa: ANN001
-        raise RuntimeError("api unreachable")
-
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _list_folder)
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", _boom)
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    # baseline + poll + trigger + poll + trigger
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(5, []))
-    sent = _patch_report(monkeypatch)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    errors = [t for sev, t, _ in sent if sev == "ERROR"]
-    assert len(errors) == 2
-    assert sum(1 for t in errors if "Poll failed" in t) == 1
-    assert sum(1 for t in errors if "Trigger failed" in t) == 1
-
-
-@pytest.mark.asyncio
-async def test_repeats_of_one_cause_stay_suppressed_across_a_long_streak(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Sixty identical Drive timeouts are still one message."""
-
-    def _boom(_: str) -> list:
-        raise RuntimeError("drive is down")
-
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _boom)
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", AsyncMock())
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(60, []))
-    sent = _patch_report(monkeypatch)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    assert len(sent) == 1
-    assert sent[0][0] == "ERROR"
-    assert "drive is down" in sent[0][1]
-
-
-@pytest.mark.asyncio
-async def test_recovery_names_the_cause_that_was_failing(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A trigger-only streak must not recover as "polling"."""
-    calls = {"n": 0}
-
-    def _list_folder(_: str) -> list:
-        calls["n"] += 1
-        if calls["n"] == 1:
-            return []
-        return [_file("b")]
-
-    fire_calls = {"n": 0}
-
-    async def _fire(path, parameters=None) -> None:  # noqa: ANN001
-        fire_calls["n"] += 1
-        if fire_calls["n"] <= 2:
-            raise RuntimeError("api unreachable")
-
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _list_folder)
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", _fire)
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(4, []))
-    sent = _patch_report(monkeypatch)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    recoveries = [t for sev, t, _ in sent if sev == "SUCCESS" and "recovered" in t]
-    assert len(recoveries) == 1
-    assert recoveries[0].startswith("trigger recovered")
-    assert "Polling" not in recoveries[0]
-    assert "poll " not in recoveries[0]
-
-
-@pytest.mark.asyncio
-async def test_a_new_cause_after_recovery_reports_again(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """reported_kinds is cleared, so the next outage is not silent."""
-    calls = {"n": 0}
-
-    def _list_folder(_: str) -> list:
-        calls["n"] += 1
-        # 1 fail, 2 ok (recover), 3 fail again
-        if calls["n"] in {1, 3}:
-            raise RuntimeError("drive is down")
-        return [_file("a")]
-
-    monkeypatch.setattr(watcher_module.drive_client, "list_folder", _list_folder)
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", AsyncMock())
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
-    sent = _patch_report(monkeypatch)
-
-    config = WatcherConfig(
-        name="w1", folder_id="folder", api_path="/v1/dep/runs", interval_min=1
-    )
-    with pytest.raises(LoopExit):
-        await run_watcher(config)
-
-    errors = [t for sev, t, _ in sent if sev == "ERROR"]
-    assert len(errors) == 2
-    assert all("Poll failed" in t for t in errors)
-    recoveries = [t for sev, t, _ in sent if sev == "SUCCESS" and "recovered" in t]
-    assert len(recoveries) == 1
-    assert "poll recovered" in recoveries[0]
-
-
-# ---------------------------------------------------------------------------
-# Targets: one request per folder, or one per file
-# ---------------------------------------------------------------------------
-
-
-def _api_cfg() -> WatcherConfig:
-    return WatcherConfig(
-        name="dj-sets",
-        folder_id="folder",
-        api_path="/v1/deejay/runs",
-        parameters={"mode": "process-new-files"},
+    world.fire.assert_called_once_with(
+        "/v1/x/runs",
+        parameters={"mode": "m", "drive_files": [{"id": "a"}, {"id": "b"}]},
     )
 
 
-def _per_file_cfg(**kwargs: object) -> WatcherConfig:
-    return WatcherConfig(
-        name="wcs-notes",
-        folder_id="folder",
-        api_path="/v1/transcription/runs",
-        per_file=True,
-        parameters={"mode": "wcs-transcripts"},
-        **kwargs,  # type: ignore[arg-type]
-    )
+def test_an_in_place_folder_claims_each_version(world: SimpleNamespace) -> None:
+    """live-history: the sheet's modifiedTime is what makes it new work."""
+    world.files = [_file("s1", "2026-09-26T10:00:00Z")]
+
+    watcher.check(_cfg(drained_by_downstream=False))
+
+    body = world.fire.call_args.kwargs["parameters"]
+    assert body["drive_files"] == [{"id": "s1", "revision": "2026-09-26T10:00:00Z"}]
 
 
-def test_a_watcher_needs_a_target() -> None:
-    """A watcher that detects work and starts nothing is the failure to prevent."""
-    with pytest.raises(ValueError, match="needs an api_path"):
-        WatcherConfig(name="w", folder_id="f", api_path="")
+def test_an_in_place_file_without_a_version_is_refused(world: SimpleNamespace) -> None:
+    """Sent without one, it would be claimed by presence and re-run forever."""
+    world.files = [_file("s1")]
+
+    with pytest.raises(watcher.CheckFailed, match="modifiedTime"):
+        watcher.check(_cfg(drained_by_downstream=False))
+    world.fire.assert_not_called()
 
 
-def test_every_watcher_posts_to_the_api(monkeypatch: pytest.MonkeyPatch) -> None:
-    """No Prefect deployment is reachable: both cogs have moved."""
-    from watcher_cog.config import get_watchers
+def test_a_per_file_watcher_asks_once_per_file(world: SimpleNamespace) -> None:
+    world.files = [_file("a"), _file("b")]
 
-    monkeypatch.setenv("CSV_SOURCE_FOLDER_ID", "csv")
-    monkeypatch.setenv("NOTES_INPUT_FOLDER_ID", "notes")
-    monkeypatch.setenv("GOOGLE_DRIVE_VOICE_INBOX_FOLDER_ID", "voice")
-    by_name = {w.name: w for w in get_watchers()}
+    watcher.check(_cfg(per_file=True))
 
-    for name, mode in (
-        ("dj-sets", "process-new-files"),
-        ("live-history", "ingest-live-history"),
-    ):
-        assert by_name[name].api_path == "/v1/deejay/runs"
-        assert by_name[name].per_file is False
-        assert by_name[name].parameters == {"mode": mode}
-
-    for name, mode in (("wcs-notes", "wcs-transcripts"), ("voice-notes", "voicenotes")):
-        assert by_name[name].api_path == "/v1/transcription/runs"
-        # One file per job: a sweep does not fit in one Lambda invocation.
-        assert by_name[name].per_file is True
-        assert by_name[name].drained_by_downstream is True
-        assert by_name[name].parameters == {"mode": mode}
-
-
-@pytest.mark.asyncio
-async def test_a_folder_target_fires_once_with_its_parameters(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    folders = [[], [_file("b"), _file("c")]]
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
-    )
-    api_fire = AsyncMock(return_value="m-1")
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", api_fire)
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, []))
-    logger = MagicMock()
-    monkeypatch.setattr(watcher_module, "log", logger)
-    sent = _patch_report(monkeypatch)
-
-    with pytest.raises(LoopExit):
-        await run_watcher(_api_cfg())
-
-    api_fire.assert_awaited_once_with(
-        "/v1/deejay/runs", parameters={"mode": "process-new-files"}
-    )
-    assert sent[0][1].startswith("Triggered POST /v1/deejay/runs")
-    info_args = [c.args for c in logger.info.call_args_list]
-    assert any(
-        any("trigger fired message=m-1" in str(a) for a in args) for args in info_args
-    )
-
-
-@pytest.mark.asyncio
-async def test_a_per_file_target_fires_once_per_changed_file(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """New and modified files each become one request naming the file."""
-    folders = [
-        [],
-        [_file("a", modified_time="1")],
-        [_file("a", modified_time="2"), _file("b")],
+    assert [c.kwargs["parameters"] for c in world.fire.call_args_list] == [
+        {"mode": "m", "drive_file_id": "a"},
+        {"mode": "m", "drive_file_id": "b"},
     ]
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
-    )
-    api_fire = AsyncMock(side_effect=["m-1", "m-2", "m-3"])
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", api_fire)
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
-    sent = _patch_report(monkeypatch)
 
-    with pytest.raises(LoopExit):
-        await run_watcher(_per_file_cfg())
 
-    bodies = [c.kwargs["parameters"] for c in api_fire.await_args_list]
-    assert bodies == [
-        {"mode": "wcs-transcripts", "drive_file_id": "a"},
-        {"mode": "wcs-transcripts", "drive_file_id": "b"},
-        {"mode": "wcs-transcripts", "drive_file_id": "a"},
+def test_a_large_folder_is_split_to_the_apis_limit(world: SimpleNamespace) -> None:
+    world.files = [_file(str(i)) for i in range(watcher.MAX_FILES_PER_REQUEST + 1)]
+
+    watcher.check(_cfg())
+
+    sizes = [
+        len(c.kwargs["parameters"]["drive_files"]) for c in world.fire.call_args_list
     ]
-    # One file, one run: the report carries its id. Two files, two runs:
-    # the report names both and carries neither.
-    assert sent.run_ids == ["m-1", None]
-    assert "messages m-2, m-3" in sent[1][1]
+    assert sizes == [watcher.MAX_FILES_PER_REQUEST, 1]
 
 
-@pytest.mark.asyncio
-async def test_a_per_file_fire_that_fails_partway_retries_every_file(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """``seen`` is not advanced, so the file already queued is asked for again.
-
-    Harmless downstream — the cog skips a file that has left its inbox —
-    and the alternative, advancing past a file that was never queued, is
-    an upload lost.
-    """
-    folders = [[], [_file("a"), _file("b")], [_file("a"), _file("b")]]
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
-    )
-    api_fire = AsyncMock(side_effect=["m-1", RuntimeError("502"), "m-2", "m-3"])
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", api_fire)
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
-    sent = _patch_report(monkeypatch)
-
-    with pytest.raises(LoopExit):
-        await run_watcher(_per_file_cfg())
-
-    files = [c.kwargs["parameters"]["drive_file_id"] for c in api_fire.await_args_list]
-    assert files == ["a", "b", "a", "b"]
-    assert sent[0][0] == "ERROR"
-    assert any(
-        text.startswith("Triggered POST /v1/transcription/runs")
-        for _s, text, _n in sent
-    )
+def test_per_file_needs_a_drained_folder() -> None:
+    with pytest.raises(ValueError, match="drained"):
+        _cfg(per_file=True, drained_by_downstream=False)
 
 
-@pytest.mark.asyncio
-async def test_a_per_file_watcher_asks_for_what_it_finds_on_start(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A drained inbox's contents at startup are pending work, not a baseline.
-
-    The folder-sweep watchers can only warn that these will not trigger. A
-    per-file watcher can name them, so it asks for them.
-    """
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: [_file("a"), _file("b")]
-    )
-    api_fire = AsyncMock(side_effect=["m-1", "m-2"])
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", api_fire)
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, []))
-    sent = _patch_report(monkeypatch)
-
-    with pytest.raises(LoopExit):
-        await run_watcher(_per_file_cfg())
-
-    files = [c.kwargs["parameters"]["drive_file_id"] for c in api_fire.await_args_list]
-    assert files == ["a", "b"]
-    assert len(sent) == 1
-    severity, text, notable = sent[0]
-    assert severity == "SUCCESS"
-    assert notable is True
-    assert "for 2 file(s) already in folder on start" in text
-    assert "Baselined" not in text
+# ── what is said ─────────────────────────────────────────────────────────
 
 
-@pytest.mark.asyncio
-async def test_a_failed_start_fire_is_retried_before_baselining(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The watcher stays uninitialised until the pending files are queued."""
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: [_file("a")]
-    )
-    api_fire = AsyncMock(side_effect=[RuntimeError("502"), "m-1"])
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", api_fire)
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
-    sent = _patch_report(monkeypatch)
+def test_new_work_is_reported_under_its_message_id(world: SimpleNamespace) -> None:
+    world.files = [_file("a")]
 
-    with pytest.raises(LoopExit):
-        await run_watcher(_per_file_cfg())
+    result = watcher.check(_cfg(per_file=True))
 
-    # Cycle 1 fails, cycle 2 queues the file, cycle 3 is quiet.
-    assert api_fire.await_count == 2
-    assert [s[0] for s in sent] == ["ERROR", "SUCCESS", "SUCCESS"]
-    assert "Trigger failed" in sent[0][1]
-    assert "already in folder on start" in sent[1][1]
-    assert "trigger recovered" in sent[2][1]
+    assert result.queued == ["m-1"]
+    world.report.assert_called_once()
+    assert world.report.call_args.args[1] == "SUCCESS"
+    assert world.report.call_args.kwargs["run_id"] == "m-1"
+    assert world.report.call_args.kwargs["notable"] is True
 
 
-@pytest.mark.asyncio
-async def test_a_suppressed_start_fire_says_would_trigger(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """In dev the files are named and nothing is queued, and it says so."""
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: [_file("a")]
-    )
-    monkeypatch.setattr(
-        watcher_module.api_trigger, "fire", AsyncMock(return_value=None)
-    )
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(1, []))
-    sent = _patch_report(monkeypatch)
+def test_several_jobs_are_named_in_the_text(world: SimpleNamespace) -> None:
+    world.files = [_file("a"), _file("b")]
+    world.fire.side_effect = [Fired(message_id="m-1"), Fired(message_id="m-2")]
 
-    with pytest.raises(LoopExit):
-        await run_watcher(_per_file_cfg())
+    watcher.check(_cfg(per_file=True))
 
-    assert sent[0][1].startswith("Would trigger")
+    assert world.report.call_args.kwargs["run_id"] is None
+    assert "m-1, m-2" in world.report.call_args.args[2]
 
 
-@pytest.mark.asyncio
-async def test_an_undrained_per_file_folder_still_baselines(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Files that are never removed are the steady state, not a backlog."""
-    monkeypatch.setattr(
-        watcher_module.drive_client,
-        "list_folder",
-        lambda _: [_file("a", modified_time="2026-01-01T00:00:00Z")],
-    )
-    api_fire = AsyncMock()
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", api_fire)
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(1, []))
-    sent = _patch_report(monkeypatch)
+def test_files_already_claimed_are_silent(world: SimpleNamespace) -> None:
+    """The steady state while a file is processed: a repeat every minute."""
+    world.files = [_file("a")]
+    world.fire.return_value = Fired(message_id="m-0", deduplicated=True)
 
-    with pytest.raises(LoopExit):
-        await run_watcher(_per_file_cfg(drained_by_downstream=False))
+    result = watcher.check(_cfg(per_file=True))
 
-    api_fire.assert_not_awaited()
-    assert sent == []
+    assert result.deduplicated == 1
+    assert result.queued == []
+    world.report.assert_not_called()
 
 
-@pytest.mark.asyncio
-async def test_a_refused_api_trigger_retries_the_same_files_next_cycle(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A 502 from the API must not advance ``seen``, or the upload is lost."""
-    folders = [[], [_file("b")], [_file("b")]]
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
-    )
-    api_fire = AsyncMock(side_effect=[RuntimeError("502 dispatch_failed"), "m-2"])
-    monkeypatch.setattr(watcher_module.api_trigger, "fire", api_fire)
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(3, []))
-    sent = _patch_report(monkeypatch)
+def test_suppressed_asks_are_silent(world: SimpleNamespace) -> None:
+    """A development tick would otherwise report every file, every minute."""
+    world.files = [_file("a")]
+    world.fire.return_value = Fired(suppressed=True)
 
-    with pytest.raises(LoopExit):
-        await run_watcher(_api_cfg())
+    result = watcher.check(_cfg(per_file=True))
 
-    assert api_fire.await_count == 2
-    severity, text, _notable = sent[0]
-    assert severity == "ERROR"
-    assert "Trigger failed for POST /v1/deejay/runs" in text
-    assert any(t.startswith("Triggered POST /v1/deejay/runs") for _s, t, _n in sent)
+    assert result.suppressed == 1
+    world.report.assert_not_called()
 
 
-@pytest.mark.asyncio
-async def test_a_trigger_report_carries_the_run_it_started(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The watcher's "Triggered" line and the Lambda run share one id.
+def test_a_report_that_fails_does_not_fail_the_check(world: SimpleNamespace) -> None:
+    world.files = [_file("a")]
+    world.report.side_effect = RuntimeError("discord down")
 
-    It used to say ``run local-run``: get_run_id() only knew Prefect's ids.
-    """
-    folders = [[], [_file("b")]]
-    monkeypatch.setattr(
-        watcher_module.drive_client, "list_folder", lambda _: folders.pop(0)
-    )
-    monkeypatch.setattr(
-        watcher_module.api_trigger, "fire", AsyncMock(return_value="m-7")
-    )
-    monkeypatch.setattr(watcher_module.heartbeat, "ping", AsyncMock())
-    monkeypatch.setattr(watcher_module.asyncio, "sleep", _make_sleep(2, []))
-    sent = _patch_report(monkeypatch)
-
-    with pytest.raises(LoopExit):
-        await run_watcher(_api_cfg())
-
-    assert sent[0][1].startswith("Triggered")
-    assert sent.run_ids == ["m-7"]
+    assert watcher.check(_cfg(per_file=True)).queued == ["m-1"]
 
 
-@pytest.mark.asyncio
-async def test_reports_without_a_trigger_use_the_process_run_id(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Not ``local-run``: the fallback identifies this container's lifetime."""
-    delivered = MagicMock(sent=True, suppressed=0)
-    post = MagicMock(return_value=delivered)
-    monkeypatch.setattr(watcher_module, "post_run_finding", post)
+# ── failure ──────────────────────────────────────────────────────────────
 
-    await watcher_module._report(_api_cfg(), "WARN", "baseline", notable=True)
 
-    assert post.call_args.kwargs["run_id"] == watcher_module.PROCESS_RUN_ID
-    assert watcher_module.PROCESS_RUN_ID.startswith("watcher-")
+def test_one_refused_file_does_not_hold_back_the_rest(world: SimpleNamespace) -> None:
+    world.files = [_file("a"), _file("b")]
+    world.fire.side_effect = [RuntimeError("502"), Fired(message_id="m-2")]
+
+    with pytest.raises(watcher.CheckFailed, match="1 ask"):
+        watcher.check(_cfg(per_file=True))
+
+    assert world.fire.call_count == 2
+    world.report.assert_called_once()
+
+
+def test_a_drive_failure_propagates(monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken(_: str) -> list:
+        raise RuntimeError("drive down")
+
+    monkeypatch.setattr(watcher.drive_client, "list_folder", broken)
+
+    with pytest.raises(RuntimeError, match="drive down"):
+        watcher.check(_cfg())
