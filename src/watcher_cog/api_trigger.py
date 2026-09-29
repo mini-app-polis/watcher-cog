@@ -19,19 +19,36 @@ fires is decided here, where the folders are production's, not downstream.
 
 A non-2xx answer raises. The next tick asks again anyway — nothing here
 remembers — so raising is only about the failure being seen.
+
+Requests and answers are the API's own models, from the shared contract
+(``mini_app_polis.api.contract``): a body the API would refuse fails here,
+before it is sent, and an answer in any other shape fails as it is read.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from mini_app_polis.api import KaianoApiClient, KaianoApiError
+from mini_app_polis.api.contract import DeejayRunRequest, TranscriptionRunRequest
 from mini_app_polis.environment import Environment, current_environment
 
 from watcher_cog.logger import log
 
 #: The machine this cog authenticates as. Same name the run reports use.
 MACHINE_NAME = "watcher-cog"
+
+#: The run endpoints a watcher can ask, by path: the request model the API
+#: validates the body against, and the typed client method that sends it.
+_RUN_ENDPOINTS: dict[str, tuple[type[Any], Callable[[KaianoApiClient, Any], Any]]] = {
+    "/v1/deejay/runs": (DeejayRunRequest, KaianoApiClient.request_deejay_run),
+    "/v1/transcription/runs": (
+        TranscriptionRunRequest,
+        KaianoApiClient.request_transcription_run,
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -53,9 +70,11 @@ class Fired:
 
 
 def fire(path: str, parameters: dict[str, object] | None = None) -> Fired:
-    """POST ``parameters`` to ``path``.
+    """POST ``parameters`` to ``path``, one of the run endpoints.
 
-    Raises :class:`KaianoApiError` when the API refuses the request or
+    Raises ``ValueError`` for a path that is not a run endpoint or a body
+    that is not a valid request for it — pydantic's ``ValidationError`` is
+    one. Raises :class:`KaianoApiError` when the API refuses the request or
     cannot be reached, and when it acknowledges new work without a message
     id — an acknowledgement nobody can trace is not evidence the work was
     queued. A deduplicated answer may lack one, in the moment between
@@ -67,16 +86,20 @@ def fire(path: str, parameters: dict[str, object] | None = None) -> Fired:
         log.info("api trigger SUPPRESSED (not production) path=%s body=%s", path, body)
         return Fired(suppressed=True)
 
-    client = KaianoApiClient.from_env(machine_name=MACHINE_NAME)
-    response = client.post(path, body)
+    if path not in _RUN_ENDPOINTS:
+        raise ValueError(f"{path} is not a run endpoint")
+    request_model, send = _RUN_ENDPOINTS[path]
+    request = request_model.model_validate(body)
 
-    data = (response.get("data") if isinstance(response, dict) else None) or {}
-    message_id = str(data.get("message_id") or "")
-    deduplicated = bool(data.get("deduplicated"))
+    client = KaianoApiClient.from_env(machine_name=MACHINE_NAME)
+    accepted = send(client, request)
+
+    message_id = accepted.message_id
+    deduplicated = accepted.deduplicated
     if not message_id and not deduplicated:
         raise KaianoApiError(
             status_code=0,
-            message=f"accepted without a message id: {response!r}",
+            message=f"accepted without a message id: {accepted!r}",
             path=path,
         )
 
