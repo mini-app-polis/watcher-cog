@@ -1,3 +1,10 @@
+## [1.19.4](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.3...v1.19.4) (2026-09-29)
+
+
+### Bug Fixes
+
+* **deps:** bump oauthlib to 4.0.0 for CVE-2026-49265 ([0c29f6e](https://github.com/mini-app-polis/watcher-cog/commit/0c29f6ec54487eb28ab8541e673464440b548494))
+
 ## [1.19.3](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.2...v1.19.3) (2026-09-28)
 
 
