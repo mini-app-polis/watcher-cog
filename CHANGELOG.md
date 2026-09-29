@@ -1,3 +1,10 @@
+## [1.19.6](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.5...v1.19.6) (2026-09-29)
+
+
+### Bug Fixes
+
+* **api:** send run requests through common's typed contract client ([3943159](https://github.com/mini-app-polis/watcher-cog/commit/3943159178bbb323baa4ecadef25fcfd163acaa9))
+
 ## [1.19.5](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.4...v1.19.5) (2026-09-29)
 
 
