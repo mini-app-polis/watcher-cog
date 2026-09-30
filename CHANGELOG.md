@@ -1,3 +1,10 @@
+## [1.19.7](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.6...v1.19.7) (2026-09-30)
+
+
+### Bug Fixes
+
+* **deps:** patch vulnerable dependencies (urllib3, virtualenv) ([c514b4a](https://github.com/mini-app-polis/watcher-cog/commit/c514b4a8c8ebbd3843a547b3ce2b341a3386658b))
+
 ## [1.19.6](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.5...v1.19.6) (2026-09-29)
 
 
