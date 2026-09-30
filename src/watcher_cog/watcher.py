@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from mini_app_polis.api import ApiUnavailable
 from mini_app_polis.google.types import DriveFile
 from mini_app_polis.pipeline_status import post_run_finding
 
@@ -46,6 +47,17 @@ class Check:
 
 class CheckFailed(Exception):
     """At least one ask for this folder failed; the rest were still made."""
+
+
+class ApiUnreachable(CheckFailed):
+    """Every failed ask failed because the API could not be reached.
+
+    Not a bug here: nothing behind the API's domain was answering — a
+    deploy, a restart, an edge blip. The next tick asks again and the
+    API's claims make that safe, so this is logged and not sent to Sentry.
+    It still fails the tick: an outage that lasts is what the error alarm
+    is for, and its window is what separates the two.
+    """
 
 
 def _file_ref(config: WatcherConfig, file: DriveFile) -> dict[str, str]:
@@ -84,10 +96,16 @@ def check(config: WatcherConfig) -> Check:
     files = drive_client.list_folder(config.folder_id)
     result = Check(watcher=config.name, files=len(files))
     errors: list[str] = []
+    unreachable = 0
 
     for body in requests_for(config, files):
         try:
             fired = api_trigger.fire(config.api_path, parameters=body)
+        except ApiUnavailable as exc:
+            log.warning("[%s] API unreachable: %s", config.name, exc)
+            errors.append(f"{type(exc).__name__}: {exc}")
+            unreachable += 1
+            continue
         except Exception as exc:  # noqa: BLE001 - reported below, after the rest
             log.error("[%s] trigger failed: %s", config.name, exc, exc_info=True)
             errors.append(f"{type(exc).__name__}: {exc}")
@@ -112,7 +130,8 @@ def check(config: WatcherConfig) -> Check:
         else "",
     )
     if errors:
-        raise CheckFailed(f"{config.name}: {len(errors)} ask(s) failed: {errors[0]}")
+        failed = ApiUnreachable if unreachable == len(errors) else CheckFailed
+        raise failed(f"{config.name}: {len(errors)} ask(s) failed: {errors[0]}")
     return result
 
 
