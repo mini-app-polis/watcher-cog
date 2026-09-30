@@ -49,6 +49,9 @@ def run_once() -> list[watcher.Check]:
     for config in get_watchers():
         try:
             results.append(watcher.check(config))
+        except watcher.ApiUnreachable as exc:
+            # Logged by the check; not a Sentry issue. Still fails the tick.
+            failures.append(f"{config.name}: {type(exc).__name__}: {exc}")
         except Exception as exc:  # noqa: BLE001 - one folder must not stop the rest
             log.error("[%s] check failed: %s", config.name, exc, exc_info=True)
             sentry_sdk.capture_exception(exc)

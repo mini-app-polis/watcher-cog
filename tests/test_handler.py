@@ -60,3 +60,22 @@ def test_a_failed_folder_fails_the_tick_after_the_rest(
     assert checked == ["a", "b"]
     capture.assert_called_once()
     ping.assert_not_called()
+
+
+def test_an_unreachable_api_fails_the_tick_without_a_sentry_issue(
+    monkeypatch: pytest.MonkeyPatch, ping: MagicMock
+) -> None:
+    """The alarm's window decides whether it lasted long enough to matter."""
+
+    def check(config: WatcherConfig) -> watcher.Check:
+        raise watcher.ApiUnreachable(f"{config.name}: 1 ask(s) failed")
+
+    monkeypatch.setattr(handler.watcher, "check", check)
+    capture = MagicMock()
+    monkeypatch.setattr(handler.sentry_sdk, "capture_exception", capture)
+
+    with pytest.raises(handler.TickFailed, match="ApiUnreachable"):
+        handler.lambda_handler({}, None)
+
+    capture.assert_not_called()
+    ping.assert_not_called()

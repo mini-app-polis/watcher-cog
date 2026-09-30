@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from mini_app_polis.api import ApiUnavailable, KaianoApiError
 
 from watcher_cog import watcher
 from watcher_cog.api_trigger import Fired
@@ -180,3 +181,25 @@ def test_a_drive_failure_propagates(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(RuntimeError, match="drive down"):
         watcher.check(_cfg())
+
+
+def test_an_unreachable_api_is_its_own_failure(world: SimpleNamespace) -> None:
+    world.files = [_file("a")]
+    world.fire.side_effect = ApiUnavailable(404, "Application not found", "/v1/x/runs")
+
+    with pytest.raises(watcher.ApiUnreachable):
+        watcher.check(_cfg(per_file=True))
+
+
+def test_a_refusal_alongside_an_outage_is_a_plain_failure(
+    world: SimpleNamespace,
+) -> None:
+    world.files = [_file("a"), _file("b")]
+    world.fire.side_effect = [
+        ApiUnavailable(503, "unavailable", "/v1/x/runs"),
+        KaianoApiError(404, "no route", "/v1/x/runs"),
+    ]
+
+    with pytest.raises(watcher.CheckFailed) as excinfo:
+        watcher.check(_cfg(per_file=True))
+    assert not isinstance(excinfo.value, watcher.ApiUnreachable)
