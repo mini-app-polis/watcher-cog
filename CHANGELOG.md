@@ -1,3 +1,12 @@
+## [1.19.8](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.7...v1.19.8) (2026-09-30)
+
+
+### Bug Fixes
+
+* **deps:** bump miniapppolis-common-utils ([1d2cf30](https://github.com/mini-app-polis/watcher-cog/commit/1d2cf30619be4c2898974a50ccc60c7b21cf681e))
+* **deps:** require miniapppolis-common-utils 5.16.0 for ApiUnavailable ([c67303b](https://github.com/mini-app-polis/watcher-cog/commit/c67303ba0aea3f6bafb202ca3016bf73bcb56d8e))
+* treat an unreachable API as a warning, not a Sentry issue ([bca4882](https://github.com/mini-app-polis/watcher-cog/commit/bca4882b62e6a62ecd25e21b9f48793f0cf5f327))
+
 ## [1.19.7](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.6...v1.19.7) (2026-09-30)
 
 
