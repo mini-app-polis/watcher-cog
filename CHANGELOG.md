@@ -1,3 +1,11 @@
+## [1.19.11](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.10...v1.19.11) (2026-10-06)
+
+
+### Bug Fixes
+
+* **deps:** bump miniapppolis-common-utils ([17bd551](https://github.com/mini-app-polis/watcher-cog/commit/17bd551e4952ce37c6a3a9c7d4eab447f02e19c4))
+* **deps:** bump sentry-sdk ([380507c](https://github.com/mini-app-polis/watcher-cog/commit/380507cd8490c33151a5da301e5fe15c4031c15f))
+
 ## [1.19.10](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.9...v1.19.10) (2026-10-03)
 
 
