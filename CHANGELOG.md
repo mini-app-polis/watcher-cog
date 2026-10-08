@@ -1,3 +1,11 @@
+## [1.19.14](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.13...v1.19.14) (2026-10-08)
+
+
+### Bug Fixes
+
+* **deps:** bump miniapppolis-common-utils ([eadfa77](https://github.com/mini-app-polis/watcher-cog/commit/eadfa77dad6808635d0df91c6d7728ff70c5b7a9))
+* **deps:** bump python-dotenv ([123a0c0](https://github.com/mini-app-polis/watcher-cog/commit/123a0c056715b6ef8f407b2b20a55437ea872eef))
+
 ## [1.19.13](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.12...v1.19.13) (2026-10-08)
 
 
