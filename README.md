@@ -66,7 +66,7 @@ Environment (loaded from SSM Parameter Store at cold start in Lambda; from `.env
 | `WATCHER_COG_API_KEY` | This cog's key for api-kaianolevine-com |
 | `HEALTHCHECKS_URL_WATCHER` | Healthchecks.io ping URL |
 | `CSV_SOURCE_FOLDER_ID`, `NOTES_INPUT_FOLDER_ID`, `GOOGLE_DRIVE_VOICE_INBOX_FOLDER_ID` | Watched folders |
-| `SENTRY_DSN`, `LOG_LEVEL` | Optional |
+| `SENTRY_DSN_COGS`, `LOG_LEVEL` | Optional |
 
 ---
 

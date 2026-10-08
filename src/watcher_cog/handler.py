@@ -32,9 +32,11 @@ from watcher_cog.logger import log
 # At import, not per invocation: a Lambda container is reused across
 # invocations, so this runs once per cold start. Labeled, not gated.
 sentry_sdk.init(
-    dsn=os.getenv("SENTRY_DSN"),
+    dsn=os.getenv("SENTRY_DSN_COGS"),
     environment=current_environment().value,
 )
+# Shared cogs project: the tag is what tells this cog's events apart.
+sentry_sdk.get_global_scope().set_tag("service", "watcher-cog")
 
 
 class TickFailed(RuntimeError):
