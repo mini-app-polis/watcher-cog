@@ -1,3 +1,10 @@
+## [1.19.15](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.14...v1.19.15) (2026-10-08)
+
+
+### Bug Fixes
+
+* **observability:** read Sentry DSN from SENTRY_DSN_COGS and tag service ([2a449a8](https://github.com/mini-app-polis/watcher-cog/commit/2a449a8a8ee37ac4f85052b521a061eb2ddc834c))
+
 ## [1.19.14](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.13...v1.19.14) (2026-10-08)
 
 
