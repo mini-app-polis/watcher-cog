@@ -58,7 +58,7 @@ Watchers are defined in `src/watcher_cog/config.py`. Each `WatcherConfig` maps o
 | `drained_by_downstream` | `True` | Whether the cog moves files out when done. `False` claims each version instead of each file |
 | `parameters` | `{}` | The request body, e.g. `{"mode": "process-new-files"}` |
 
-Environment (loaded from SSM Parameter Store at cold start in Lambda; from Doppler's `dev` config locally, via `doppler run`):
+Environment (loaded from SSM Parameter Store in Lambda, at cold start and again every tick; from Doppler's `dev` config locally, via `doppler run`):
 
 | Variable | Description |
 |---|---|

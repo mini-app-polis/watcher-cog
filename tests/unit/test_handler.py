@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from unittest.mock import MagicMock
 
 import pytest
@@ -10,6 +11,13 @@ from watcher_cog.config import WatcherConfig
 
 def _cfg(name: str) -> WatcherConfig:
     return WatcherConfig(name=name, folder_id=name, api_path="/v1/x/runs")
+
+
+@pytest.fixture(autouse=True)
+def refresh(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    refresh = MagicMock()
+    monkeypatch.setattr(handler, "load_secrets", refresh)
+    return refresh
 
 
 @pytest.fixture
@@ -78,4 +86,32 @@ def test_an_unreachable_api_fails_the_tick_without_a_sentry_issue(
         handler.lambda_handler({}, None)
 
     capture.assert_not_called()
+    ping.assert_not_called()
+
+
+def test_each_tick_reloads_settings_and_applies_the_logging_level(
+    monkeypatch: pytest.MonkeyPatch, ping: MagicMock, refresh: MagicMock
+) -> None:
+    monkeypatch.setattr(
+        handler.watcher, "check", lambda c: watcher.Check(watcher=c.name, files=0)
+    )
+    monkeypatch.setenv("LOGGING_LEVEL", "DEBUG")
+
+    handler.lambda_handler({}, None)
+
+    refresh.assert_called_once_with(refresh=True)
+    assert handler.log.level == logging.DEBUG
+
+
+def test_a_settings_reload_that_fails_fails_the_tick(
+    monkeypatch: pytest.MonkeyPatch, ping: MagicMock, refresh: MagicMock
+) -> None:
+    refresh.side_effect = RuntimeError("parameter gone")
+    check = MagicMock()
+    monkeypatch.setattr(handler.watcher, "check", check)
+
+    with pytest.raises(RuntimeError, match="parameter gone"):
+        handler.lambda_handler({}, None)
+
+    check.assert_not_called()
     ping.assert_not_called()
