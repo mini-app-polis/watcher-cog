@@ -1,3 +1,10 @@
+## [1.19.17](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.16...v1.19.17) (2026-10-09)
+
+
+### Bug Fixes
+
+* **handler:** reload settings from SSM on every tick ([3de77b5](https://github.com/mini-app-polis/watcher-cog/commit/3de77b563cb656bea72ca77969b5a093870714f9))
+
 ## [1.19.16](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.15...v1.19.16) (2026-10-09)
 
 
