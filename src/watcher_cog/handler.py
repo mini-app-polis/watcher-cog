@@ -19,10 +19,12 @@ nothing else can see: a schedule that stopped invoking this at all.
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 
 import sentry_sdk
+from mini_app_polis import load_secrets
 from mini_app_polis.environment import current_environment
 
 from watcher_cog import heartbeat, watcher
@@ -71,6 +73,15 @@ def run_once() -> list[watcher.Check]:
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:  # noqa: ANN401
     """Run one tick. The return value is only for the invocation log."""
+    # Settings as Doppler holds them now, not as they were at cold start, as
+    # the queue workers do: a warm container otherwise ticks on stale folder
+    # ids, keys and LOGGING_LEVEL until the next deploy. One GetParameters
+    # call; a failed read keeps the values already loaded, and a required
+    # parameter that has gone missing fails the tick, which the alarm sees.
+    load_secrets(refresh=True)
+    log.setLevel(
+        getattr(logging, os.getenv("LOGGING_LEVEL", "INFO").upper(), logging.INFO)
+    )
     results = run_once()
     return {
         "queued": sum(len(r.queued) for r in results),
