@@ -8,7 +8,7 @@ with descriptions; nothing reads a `.env` file.
 |---|---|---|
 | GOOGLE_CREDENTIALS_JSON | Yes | Service account credentials JSON as a string |
 | HEALTHCHECKS_URL_WATCHER | Yes | Healthchecks.io ping URL |
-| SENTRY_DSN_COGS | Yes | Sentry DSN for error tracking |
+| SENTRY_DSN_COGS | No | Sentry DSN for error tracking; unset turns Sentry off |
 | LOGGING_LEVEL | No | DEBUG, INFO (default), WARNING |
 | CSV_SOURCE_FOLDER_ID | Yes | Drive folder ID watched by `dj-sets` |
 | NOTES_INPUT_FOLDER_ID | Yes | Drive folder ID watched by `wcs-notes` |
