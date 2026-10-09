@@ -12,8 +12,6 @@ from __future__ import annotations
 import argparse
 import time
 
-from dotenv import load_dotenv
-
 #: Seconds between ticks. The Lambda schedule is ``rate(1 minute)``.
 INTERVAL_SECONDS = 60
 
@@ -24,9 +22,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--once", action="store_true", help="run a single tick")
     args = parser.parse_args(argv)
 
-    # Before the handler is imported: it initialises Sentry from the
-    # environment at import.
-    load_dotenv()
+    # Imported here, not at the top: the handler initialises Sentry from the
+    # environment at import, and that environment comes from `doppler run`.
     from mini_app_polis.environment import summary
 
     from watcher_cog.handler import run_once

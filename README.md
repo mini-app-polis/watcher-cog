@@ -58,7 +58,7 @@ Watchers are defined in `src/watcher_cog/config.py`. Each `WatcherConfig` maps o
 | `drained_by_downstream` | `True` | Whether the cog moves files out when done. `False` claims each version instead of each file |
 | `parameters` | `{}` | The request body, e.g. `{"mode": "process-new-files"}` |
 
-Environment (loaded from SSM Parameter Store at cold start in Lambda; from `.env` locally):
+Environment (loaded from SSM Parameter Store at cold start in Lambda; from Doppler's `dev` config locally, via `doppler run`):
 
 | Variable | Description |
 |---|---|
@@ -66,19 +66,28 @@ Environment (loaded from SSM Parameter Store at cold start in Lambda; from `.env
 | `WATCHER_COG_API_KEY` | This cog's key for api-kaianolevine-com |
 | `HEALTHCHECKS_URL_WATCHER` | Healthchecks.io ping URL |
 | `CSV_SOURCE_FOLDER_ID`, `NOTES_INPUT_FOLDER_ID`, `GOOGLE_DRIVE_VOICE_INBOX_FOLDER_ID` | Watched folders |
-| `SENTRY_DSN_COGS`, `LOG_LEVEL` | Optional |
+| `SENTRY_DSN_COGS`, `LOGGING_LEVEL` | Optional |
 
 ---
 
 ## Running locally
 
-Requires Python 3.11+ and [uv](https://github.com/astral-sh/uv).
+Requires Python 3.11+, [uv](https://github.com/astral-sh/uv) and the
+[Doppler CLI](https://docs.doppler.com/docs/install-cli). Secrets come from
+Doppler's shared `dev` config — nothing reads a `.env` file, and local runs
+never use `prd`.
 
 ```bash
+brew install gnupg dopplerhq/cli/doppler   # once per machine
+doppler login                              # once per machine
+
+doppler setup                              # once per clone: reads doppler.yaml
 uv sync
-cp .env.example .env   # fill in the values, or run under `doppler run --`
-uv run python -m watcher_cog.main --once
+uv run check-doppler-keys                  # every required .env.example name is in dev
+doppler run -- uv run python -m watcher_cog.main --once
 ```
+
+Anything that needs secrets runs under `doppler run -- …`; the tests do not.
 
 `--once` runs a single tick. Outside production every trigger and the
 heartbeat are suppressed, so a local tick lists the real folders and logs

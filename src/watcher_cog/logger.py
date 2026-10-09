@@ -11,7 +11,7 @@ LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 
 def _build_logger() -> logging.Logger:
     logger = logging.getLogger(LOGGER_NAME)
-    level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+    level_name = os.getenv("LOGGING_LEVEL", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
     logger.setLevel(level)
 
