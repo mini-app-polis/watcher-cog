@@ -11,6 +11,7 @@ caught by the next one, and a restart is not an event.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 
 from mini_app_polis.api import ApiUnavailable
@@ -86,19 +87,30 @@ def requests_for(
     ]
 
 
-def check(config: WatcherConfig) -> Check:
+def check(config: WatcherConfig, deadline: float | None = None) -> Check:
     """List the folder and ask for what is in it.
 
     A failed ask does not stop the others: one file the API refuses must
     not hold back the rest of the folder. Raises :class:`CheckFailed` after
     trying everything, so the tick is still marked as failed.
+
+    ``deadline`` is a ``time.monotonic()`` value after which no new ask is
+    started — the handler sets it so the last ask still fits inside the
+    function's timeout. Asks not made are a failure, not a skip: the next
+    tick makes them, but a folder that never fits in one tick has to show.
     """
     files = drive_client.list_folder(config.folder_id)
     result = Check(watcher=config.name, files=len(files))
     errors: list[str] = []
     unreachable = 0
 
-    for body in requests_for(config, files):
+    bodies = requests_for(config, files)
+    for made, body in enumerate(bodies):
+        if deadline is not None and time.monotonic() >= deadline:
+            errors.append(
+                f"out of time: {len(bodies) - made} of {len(bodies)} ask(s) not made"
+            )
+            break
         try:
             fired = api_trigger.fire(config.api_path, parameters=body)
         except ApiUnavailable as exc:

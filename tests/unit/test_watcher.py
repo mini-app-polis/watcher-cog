@@ -203,3 +203,33 @@ def test_a_refusal_alongside_an_outage_is_a_plain_failure(
     with pytest.raises(watcher.CheckFailed) as excinfo:
         watcher.check(_cfg(per_file=True))
     assert not isinstance(excinfo.value, watcher.ApiUnreachable)
+
+
+# ── the deadline ─────────────────────────────────────────────────────────
+
+
+def test_no_ask_starts_after_the_deadline(
+    world: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Asks not made are a failure: the next tick makes them, but it shows."""
+    world.files = [_file("a"), _file("b"), _file("c")]
+    clock = iter([0.0, 5.0, 11.0])
+    monkeypatch.setattr(watcher.time, "monotonic", lambda: next(clock))
+
+    with pytest.raises(watcher.CheckFailed, match="out of time: 1 of 3 ask"):
+        watcher.check(_cfg(per_file=True), deadline=10.0)
+
+    assert [
+        c.kwargs["parameters"]["drive_file_id"] for c in world.fire.call_args_list
+    ] == [
+        "a",
+        "b",
+    ]
+
+
+def test_without_a_deadline_every_ask_is_made(world: SimpleNamespace) -> None:
+    world.files = [_file("a"), _file("b")]
+
+    watcher.check(_cfg(per_file=True))
+
+    assert world.fire.call_count == 2
