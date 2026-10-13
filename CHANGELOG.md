@@ -1,3 +1,10 @@
+## [1.19.21](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.20...v1.19.21) (2026-10-13)
+
+
+### Bug Fixes
+
+* **watcher:** bound each API ask and check one folder per invocation ([f925930](https://github.com/mini-app-polis/watcher-cog/commit/f925930e1f5530c6d16d9326f67c14f38d4d43c5))
+
 ## [1.19.20](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.19...v1.19.20) (2026-10-12)
 
 
