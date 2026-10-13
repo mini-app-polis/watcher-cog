@@ -40,6 +40,14 @@ from watcher_cog.logger import log
 #: The machine this cog authenticates as. Same name the run reports use.
 MACHINE_NAME = "watcher-cog"
 
+#: Seconds one ask may take. The client's default is 30s with three
+#: attempts — 90s for one ask, against a 50s function timeout — so a slow or
+#: restarting API ran ticks into the timeout. Nothing here remembers between
+#: ticks and the next tick asks again a minute later, so that tick is the
+#: retry: one attempt, bounded well inside the function's budget.
+API_TIMEOUT_SECONDS = 10.0
+API_ATTEMPTS = 1
+
 #: The run endpoints a watcher can ask, by path: the request model the API
 #: validates the body against, and the typed client method that sends it.
 _RUN_ENDPOINTS: dict[str, tuple[type[Any], Callable[[KaianoApiClient, Any], Any]]] = {
@@ -92,6 +100,8 @@ def fire(path: str, parameters: dict[str, object] | None = None) -> Fired:
     request = request_model.model_validate(body)
 
     client = KaianoApiClient.from_env(machine_name=MACHINE_NAME)
+    client.timeout = API_TIMEOUT_SECONDS
+    client.max_retries = API_ATTEMPTS
     accepted = send(client, request)
 
     message_id = accepted.message_id

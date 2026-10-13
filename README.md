@@ -6,13 +6,14 @@ A scheduled function that watches Google Drive folders and asks api-kaianolevine
 
 ## Overview
 
-`watcher-cog` is a scheduled AWS Lambda function. Once a minute it lists each watched Drive folder and asks api-kaianolevine-com for the work that is there. The API claims each file it is told about and enqueues onto the owning cog's queue only when a claim is new, so asking for the same file every minute becomes one job.
+`watcher-cog` is a scheduled AWS Lambda function. Once a minute it lists each watched Drive folder, each in its own invocation, and asks api-kaianolevine-com for the work that is there. The API claims each file it is told about and enqueues onto the owning cog's queue only when a claim is new, so asking for the same file every minute becomes one job.
 
 **What it does:**
-- Lists every watched folder once a minute, on an EventBridge schedule
+- Lists every watched folder once a minute: one EventBridge rule with a target per folder, so each folder is its own invocation and fails, times out and alarms on its own
 - POSTs the owning cog's runs route with what it finds — the files for a sweep cog, one request per file for a `per_file` cog
 - Reports to the runs channel when work was queued, and stays silent when every file was already claimed
-- Pings Healthchecks.io after every tick in which every folder was checked
+- Pings Healthchecks.io after every tick in which its folder was checked (one check for all four)
+- Gives each ask one 10s attempt, and starts no new ask once one more would not fit inside the function's timeout — the next tick is the retry
 
 **What it does not do:**
 - Remember anything. There is no seen-set and no baseline: every tick asks for everything present, and the API's dispatch claims make the repeats no-ops
@@ -24,14 +25,14 @@ A scheduled function that watches Google Drive folders and asks api-kaianolevine
 ## How a file becomes one job
 
 ```
-tick (EventBridge, every minute)
-└── for each watcher
+tick (EventBridge, every minute, one invocation per watcher: {"watcher": name})
+└── that watcher (every watcher, for an event that names none)
     ├── drive_client.list_folder(folder)
     ├── api_trigger.fire(api_path, body)   # body names the files
     │     API: claim each file → enqueue if any claim is new → message id
     │     or:  every file already claimed → deduplicated, earlier message id
     └── report to runs if anything was queued
-heartbeat.ping()  # only if every folder was checked
+heartbeat.ping()  # only if the tick's folders were checked
 ```
 
 The API owns the rules (`services/dispatch_claims.py` there):
@@ -107,13 +108,13 @@ The function, its schedule, its error alarm and its deploy role are declared in 
 
 | Signal | Tool | What it covers |
 |---|---|---|
-| Silence | Healthchecks.io (1-minute period, 5-minute grace) | Nothing is invoking the function, or every tick is failing |
-| Failing ticks | CloudWatch alarm `watcher-failing` → email | 3 failed ticks in 5 minutes; notifies once on the way into ALARM and once back out |
+| Silence | Healthchecks.io (1-minute period, 5-minute grace) | Nothing is invoking the function, or every folder's tick is failing. Every folder pings the one check, so it cannot see one folder failing |
+| Failing ticks | CloudWatch alarm `watcher-failing` → email | A failed tick in each of 10 consecutive minutes, from any folder; notifies once on the way into ALARM and once back out |
 | Why it failed | Sentry, and the function's log group | Which folder, which request |
 | Work started | Runs channel | One report per tick that queued anything |
 | Work that never finished | The file is still in its folder; each cog's dead-letter alarm | Dispatched again after 6 hours; given up on after 3 |
 
-A tick checks every folder even when one fails, then raises, so one broken folder does not stop the others and still marks the tick as failed.
+Each folder is its own invocation, so one broken or slow folder fails only its own tick and cannot spend the others' time.
 
 ---
 
@@ -122,7 +123,7 @@ A tick checks every folder even when one fails, then raises, so one broken folde
 ```
 src/watcher_cog/
 ├── __init__.py       # loads SSM secrets at import
-├── handler.py        # Lambda entry point: one tick over every watcher
+├── handler.py        # Lambda entry point: one tick over the named watcher
 ├── watcher.py        # one folder: list it, ask for what is there
 ├── api_trigger.py    # POST the owning cog's runs route
 ├── drive_client.py   # Google Drive listing

@@ -139,3 +139,16 @@ def test_outside_production_nothing_is_called(
     assert fired.suppressed
     assert not fired.queued
     client.factory.assert_not_called()
+
+
+def test_each_ask_is_one_bounded_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The next tick is the retry; one ask must fit well inside the timeout."""
+    client = _client(
+        monkeypatch,
+        return_value=_answer(accepted=True, message_id="m-1", mode=DEEJAY["mode"]),
+    )
+
+    api_trigger.fire("/v1/deejay/runs", parameters=DEEJAY)
+
+    assert client.timeout == api_trigger.API_TIMEOUT_SECONDS == 10.0
+    assert client.max_retries == api_trigger.API_ATTEMPTS == 1
