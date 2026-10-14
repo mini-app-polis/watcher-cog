@@ -71,3 +71,15 @@ a missed check is caught by the next one.
 - The Railway service and its always-on process go away. Until they do,
   `python -m watcher_cog.main` runs the same stateless tick in a loop, and
   running it beside the Lambda is safe.
+
+## Amendment — 2026-10-14: one invocation per folder
+
+The schedule now has one EventBridge target per watched folder, each
+invoking the function with `{"watcher": "<name>"}`, so a slow or failing
+folder cannot spend the others' timeout or fail their tick. The
+reservation is one slot per target rather than one: with a single slot
+the targets that fire on the same tick are throttled, run one after
+another, and are dropped once they outwait the one-minute event age —
+silently, since neither the error alarm nor Healthchecks sees a tick that
+never ran. Dropped ticks show on the services dashboard's watcher row.
+Overlapping ticks remain harmless: the API's claims make a repeat a no-op.
