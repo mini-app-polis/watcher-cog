@@ -4,7 +4,13 @@ Date: 2026-09-21
 
 ## Status
 
-Accepted
+Accepted — partially superseded 2026-09-26 by
+[ADR-005](./ADR-005-stateless-scheduled-watcher.md). Still in force: every
+target is an API route, Prefect is gone, and a `per_file` watcher POSTs once
+per file with `drive_file_id`. No longer true: the diffing against the last
+poll, the start-up behaviour, the `seen`-set handling of partial failures,
+and dead-letter redrive as the recovery — the watcher now remembers nothing
+and the API's dispatch claims deduplicate.
 
 Supersedes [ADR-002](./ADR-002-raw-httpx-prefect-trigger.md).
 

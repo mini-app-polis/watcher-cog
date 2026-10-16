@@ -129,6 +129,7 @@ src/watcher_cog/
 ├── drive_client.py   # Google Drive listing
 ├── heartbeat.py      # Healthchecks.io ping
 ├── config.py         # WatcherConfig and the watcher list
+├── logger.py         # stdlib logger setup
 └── main.py           # run a tick locally (--once) or every minute
 ```
 

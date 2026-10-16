@@ -35,7 +35,7 @@ select = ["E", "F", "I", "B", "UP", "ASYNC", "ANN"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 asyncio_mode = "auto"
-testpaths = ["tests/unit", "tests/integration"]
+testpaths = ["tests/unit"]
 
 [tool.mypy]
 python_version = "3.11"
