@@ -33,7 +33,7 @@ from typing import Any
 
 import sentry_sdk
 from mini_app_polis import load_secrets
-from mini_app_polis.environment import current_environment
+from mini_app_polis.sentry import init_sentry
 
 from watcher_cog import api_trigger, heartbeat, watcher
 from watcher_cog.config import get_watchers
@@ -41,12 +41,9 @@ from watcher_cog.logger import log
 
 # At import, not per invocation: a Lambda container is reused across
 # invocations, so this runs once per cold start. Labeled, not gated.
-sentry_sdk.init(
-    dsn=os.getenv("SENTRY_DSN_COGS"),
-    environment=current_environment().value,
-)
-# Shared cogs project: the tag is what tells this cog's events apart.
-sentry_sdk.get_global_scope().set_tag("service", "watcher-cog")
+# An empty DSN in production logs an ERROR rather than passing silently
+# (CD-038); the service tag tells this cog's events apart in the shared project.
+init_sentry("watcher-cog")
 
 
 class TickFailed(RuntimeError):
