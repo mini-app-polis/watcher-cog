@@ -1,3 +1,10 @@
+## [1.19.33](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.32...v1.19.33) (2026-10-20)
+
+
+### Bug Fixes
+
+* **deps:** bump certifi to 2026.10.19 for GHSA-6q48-6c7w-9gw2 ([1c4c99c](https://github.com/mini-app-polis/watcher-cog/commit/1c4c99ce52d472e5305e5b86dc68470cb8a8a552))
+
 ## [1.19.32](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.31...v1.19.32) (2026-10-19)
 
 
