@@ -1,3 +1,10 @@
+## [1.19.35](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.34...v1.19.35) (2026-10-21)
+
+
+### Bug Fixes
+
+* **deps:** patch vulnerable dependencies (virtualenv) ([b9dc689](https://github.com/mini-app-polis/watcher-cog/commit/b9dc6896425a63fd38ad22d9399c231265398e9c))
+
 ## [1.19.34](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.33...v1.19.34) (2026-10-20)
 
 
