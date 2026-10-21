@@ -1,3 +1,14 @@
+## [1.19.38](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.37...v1.19.38) (2026-10-21)
+
+
+### Bug Fixes
+
+* **deps:** bump miniapppolis-common-utils to 6.12.0 ([ea8b334](https://github.com/mini-app-polis/watcher-cog/commit/ea8b334290cf227bc585381e6dcfe6ec837545a9))
+* **deps:** bump miniapppolis-common-utils to 6.13.0 ([a68f93d](https://github.com/mini-app-polis/watcher-cog/commit/a68f93dd1740983285ebeb07a5d69f4d71edbd2c))
+* **deps:** bump miniapppolis-common-utils to 6.14.0 ([790827a](https://github.com/mini-app-polis/watcher-cog/commit/790827a047525e72d92c81cf11241e00ba636167))
+* **deps:** bump miniapppolis-common-utils to 6.15.0 ([7156acd](https://github.com/mini-app-polis/watcher-cog/commit/7156acd93d0960220664a76345263d0d0253dadf))
+* **deps:** patch vulnerable dependencies (virtualenv) ([027e8d1](https://github.com/mini-app-polis/watcher-cog/commit/027e8d1826bd32339cdb573662ff289224b736fa))
+
 ## [1.19.37](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.36...v1.19.37) (2026-10-21)
 
 
