@@ -35,14 +35,14 @@ tick (EventBridge, every minute, one invocation per watcher: {"watcher": name})
 heartbeat.ping()  # only if the tick's folders were checked
 ```
 
-The API owns the rules (`services/dispatch_claims.py` there):
+The API owns the rules, behind its run endpoints:
 
 | Folder | Claim | A file still there later |
 |---|---|---|
 | Drained inbox (`drained_by_downstream=True`) — the cog moves a file out when done | by file id | Dispatched again after 6 hours, because its job has failed through every retry by then. After 3 dispatches it is given up on and reported once to the errors channel |
 | Edited in place (`drained_by_downstream=False`) — live-history's sheets | by file id and modifiedTime | Never re-dispatched; the next edit is a new version and a new job |
 
-The retry is the file sitting in the folder: the dead-letter queue never needs redriving. To retry a file that was given up on, fix or move it and delete its `dispatch_claims` row.
+The retry is the file sitting in the folder: the dead-letter queue never needs redriving. To retry a file that was given up on, fix or move it and clear its claim in api-kaianolevine-com.
 
 ---
 
@@ -90,7 +90,7 @@ what it would have asked for without starting any work.
 
 ## Deployment
 
-The function, its schedule, its error alarm and its deploy role are declared in `mini-app-polis/infra` (`module "watcher"`, `modules/scheduled-worker`). This repository owns only the code, and CI deploys it on each release with the shared `lambda-deploy.yml`. The handler is `watcher_cog.handler.lambda_handler`.
+The function, its schedule, its error alarm and its deploy role are declared in `mini-app-polis/infra`. This repository owns only the code, and CI deploys it on each release with the shared `lambda-deploy.yml`. The handler is `watcher_cog.handler.lambda_handler`.
 
 `python -m watcher_cog.main` without `--once` runs the same tick every minute, for exercising the loop by hand.
 
@@ -101,7 +101,7 @@ The function, its schedule, its error alarm and its deploy role are declared in 
 | Signal | Tool | What it covers |
 |---|---|---|
 | Silence | Healthchecks.io (1-minute period, 5-minute grace) | Nothing is invoking the function, or every folder's tick is failing. Every folder pings the one check, so it cannot see one folder failing |
-| Failing ticks | CloudWatch alarm `watcher-failing` → email | A failed tick in each of 10 consecutive minutes, from any folder; notifies once on the way into ALARM and once back out |
+| Failing ticks | The function's error alarm, declared in `mini-app-polis/infra` → email | Ticks failing over a sustained stretch, from any folder; notifies once on the way into ALARM and once back out |
 | Why it failed | Sentry, and the function's log group | Which folder, which request |
 | Work started | Runs channel | One report per tick that queued anything |
 | Work that never finished | The file is still in its folder; each cog's dead-letter alarm | Dispatched again after 6 hours; given up on after 3 |
