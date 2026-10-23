@@ -3,11 +3,6 @@
 
 type: trigger-cog
 
-traits:
-  - logger-primitive
-  # src/watcher_cog/logger.py is the logger wrapper implementation for this
-  # service — CD-009 (shared logger requirement) cannot apply to itself.
-
 exemptions:
   - rule: PRIN-005
     reason: "Three-layer observability is satisfied for this trigger-cog: Healthchecks liveness ping via HEALTHCHECKS_URL_WATCHER (src/watcher_cog/heartbeat.py, pinged after every tick that checked every folder), structured logging via common-python-utils (declared dependency), and Sentry error tracking (sentry-sdk initialized in src/watcher_cog/handler.py at cold start). PRIN-005's check_notes scope run history to pipelines via the '(for pipelines)' parenthetical. Watcher-cog is a trigger-cog, not a pipeline — its operational signal is the Healthchecks ping, the function's error alarm and Sentry, and every trigger that queued work is reported under the queue message id it became. Run history belongs to the downstream pipeline-cogs watcher-cog triggers."

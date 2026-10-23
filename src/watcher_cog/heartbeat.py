@@ -21,9 +21,10 @@ from __future__ import annotations
 import os
 
 import httpx
+from mini_app_polis import logger as logger_mod
 from mini_app_polis.environment import Effect, effect_enabled
 
-from watcher_cog.logger import log
+log = logger_mod.get_logger()
 
 
 def ping() -> None:

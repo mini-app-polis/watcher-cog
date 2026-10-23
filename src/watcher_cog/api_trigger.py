@@ -31,11 +31,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from mini_app_polis import logger as logger_mod
 from mini_app_polis.api import KaianoApiClient, KaianoApiError
 from mini_app_polis.api.contract import DeejayRunRequest, TranscriptionRunRequest
 from mini_app_polis.environment import Environment, current_environment
 
-from watcher_cog.logger import log
+log = logger_mod.get_logger()
+
 
 #: The machine this cog authenticates as. Same name the run reports use.
 MACHINE_NAME = "watcher-cog"
@@ -90,14 +92,16 @@ def fire(path: str, parameters: dict[str, object] | None = None) -> Fired:
     the work is someone else's to report.
     """
     body = parameters or {}
-    if current_environment() is not Environment.PRODUCTION:
-        log.info("api trigger SUPPRESSED (not production) path=%s body=%s", path, body)
-        return Fired(suppressed=True)
-
+    # Checked before the gate, so a bad path or body fails in every
+    # environment, not first in production.
     if path not in _RUN_ENDPOINTS:
         raise ValueError(f"{path} is not a run endpoint")
     request_model, send = _RUN_ENDPOINTS[path]
     request = request_model.model_validate(body)
+
+    if current_environment() is not Environment.PRODUCTION:
+        log.info("api trigger SUPPRESSED (not production) path=%s body=%s", path, body)
+        return Fired(suppressed=True)
 
     client = KaianoApiClient.from_env(machine_name=MACHINE_NAME)
     client.timeout = API_TIMEOUT_SECONDS

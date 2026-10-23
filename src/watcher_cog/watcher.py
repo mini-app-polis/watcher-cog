@@ -14,13 +14,15 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
+from mini_app_polis import logger as logger_mod
 from mini_app_polis.api import ApiUnavailable
 from mini_app_polis.google.types import DriveFile
 from mini_app_polis.pipeline_status import post_run_finding
 
 from watcher_cog import api_trigger, drive_client
 from watcher_cog.config import WatcherConfig
-from watcher_cog.logger import log
+
+log = logger_mod.get_logger()
 
 #: Reported as the machine name, so the API attributes these to this cog.
 REPO = "watcher-cog"

@@ -66,7 +66,7 @@ Environment (loaded from SSM Parameter Store in Lambda, at cold start and again 
 | `GOOGLE_CREDENTIALS_JSON` | Service account credentials JSON, as a string |
 | `WATCHER_COG_API_KEY` | This cog's key for api-kaianolevine-com |
 | `HEALTHCHECKS_URL_WATCHER` | Healthchecks.io ping URL |
-| `CSV_SOURCE_FOLDER_ID`, `NOTES_INPUT_FOLDER_ID`, `GOOGLE_DRIVE_VOICE_INBOX_FOLDER_ID` | Watched folders |
+| `CSV_SOURCE_FOLDER_ID`, `LIVE_HISTORY_FOLDER_ID`, `NOTES_INPUT_FOLDER_ID`, `GOOGLE_DRIVE_VOICE_INBOX_FOLDER_ID` | Watched folders |
 | `SENTRY_DSN_COGS`, `LOGGING_LEVEL` | Optional |
 
 ---
@@ -129,7 +129,6 @@ src/watcher_cog/
 ├── drive_client.py   # Google Drive listing
 ├── heartbeat.py      # Healthchecks.io ping
 ├── config.py         # WatcherConfig and the watcher list
-├── logger.py         # stdlib logger setup
 └── main.py           # run a tick locally (--once) or every minute
 ```
 
