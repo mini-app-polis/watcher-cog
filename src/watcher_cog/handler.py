@@ -26,18 +26,18 @@ failure nothing else can see: a schedule that stopped invoking this at all.
 
 from __future__ import annotations
 
-import logging
-import os
 import time
 from typing import Any
 
 import sentry_sdk
 from mini_app_polis import load_secrets
+from mini_app_polis import logger as logger_mod
 from mini_app_polis.sentry import init_sentry
 
 from watcher_cog import api_trigger, heartbeat, watcher
 from watcher_cog.config import get_watchers
-from watcher_cog.logger import log
+
+log = logger_mod.get_logger()
 
 # At import, not per invocation: a Lambda container is reused across
 # invocations, so this runs once per cold start. Labeled, not gated.
@@ -111,9 +111,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:  # no
     # call; a failed read keeps the values already loaded, and a required
     # parameter that has gone missing fails the tick, which the alarm sees.
     load_secrets(refresh=True)
-    log.setLevel(
-        getattr(logging, os.getenv("LOGGING_LEVEL", "INFO").upper(), logging.INFO)
-    )
+    logger_mod.apply_level()
     only = (event or {}).get("watcher")
     results = run_once(only=only, deadline=_deadline(context))
     return {

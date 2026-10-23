@@ -86,7 +86,7 @@ def get_watchers() -> list[WatcherConfig]:
         ),
         WatcherConfig(
             name="live-history",
-            folder_id="1HGxEr5ocY9JLtXcJqDRIOD95rXU6QLUW",
+            folder_id=_require("LIVE_HISTORY_FOLDER_ID"),
             api_path=_DEEJAY_RUNS_PATH,
             # This folder holds the live-history sheets themselves. They
             # are modified in place and nothing removes them, so a sheet's

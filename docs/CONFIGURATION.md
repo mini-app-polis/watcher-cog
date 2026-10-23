@@ -12,6 +12,7 @@ with descriptions; nothing reads a `.env` file.
 | LOGGING_LEVEL | No | DEBUG, INFO (default), WARNING |
 | CSV_SOURCE_FOLDER_ID | Yes | Drive folder ID watched by `dj-sets` |
 | NOTES_INPUT_FOLDER_ID | Yes | Drive folder ID watched by `wcs-notes` |
+| LIVE_HISTORY_FOLDER_ID | Yes | Drive folder ID watched by `live-history`: the live-history sheets themselves, edited in place |
 | GOOGLE_DRIVE_VOICE_INBOX_FOLDER_ID | Yes | Drive folder ID watched by `voice-notes` — same env-var name the transcription-cog voicenotes sub-pipeline reads, so the Doppler config holds one value for both |
 
 ## Watcher config

@@ -152,3 +152,18 @@ def test_each_ask_is_one_bounded_attempt(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert client.timeout == api_trigger.API_TIMEOUT_SECONDS == 10.0
     assert client.max_retries == api_trigger.API_ATTEMPTS == 1
+
+
+@pytest.mark.parametrize("environment", ["development", "local"])
+def test_outside_production_a_bad_path_or_body_still_fails(
+    monkeypatch: pytest.MonkeyPatch, environment: str
+) -> None:
+    """Validation comes before the gate, so a bad request fails in dev too."""
+    monkeypatch.setenv("ENVIRONMENT", environment)
+    client = _client(monkeypatch, return_value=_answer(message_id="m-1"))
+
+    with pytest.raises(ValueError, match="not a run endpoint"):
+        api_trigger.fire("/v1/not/a/run", parameters=DEEJAY)
+    with pytest.raises(ValueError):
+        api_trigger.fire("/v1/deejay/runs", parameters={"mode": "no-such-mode"})
+    client.factory.assert_not_called()

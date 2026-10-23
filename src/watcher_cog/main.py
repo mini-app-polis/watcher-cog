@@ -24,10 +24,12 @@ def main(argv: list[str] | None = None) -> None:
 
     # Imported here, not at the top: the handler initialises Sentry from the
     # environment at import, and that environment comes from `doppler run`.
+    from mini_app_polis import logger as logger_mod
     from mini_app_polis.environment import summary
 
     from watcher_cog.handler import run_once
-    from watcher_cog.logger import log
+
+    log = logger_mod.get_logger()
 
     # The environment, both gates and the resolved API base URL, in one
     # line — read after a deploy instead of assuming.
