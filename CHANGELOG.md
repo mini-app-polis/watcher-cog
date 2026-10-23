@@ -1,3 +1,12 @@
+## [1.19.43](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.42...v1.19.43) (2026-10-23)
+
+
+### Bug Fixes
+
+* **config:** read the live-history folder from config, validate before the production gate, use the shared logger ([d1b27dd](https://github.com/mini-app-polis/watcher-cog/commit/d1b27dd0e0141e7cc6dad8f7d234059e92ddfa3f))
+* **deps:** bump miniapppolis-common-utils to 6.18.0 ([039bbfa](https://github.com/mini-app-polis/watcher-cog/commit/039bbfa612f8b7965566c6c714391b2c80f2ea7e))
+* **deps:** bump miniapppolis-common-utils to 6.19.0 ([9a0b494](https://github.com/mini-app-polis/watcher-cog/commit/9a0b494bb23c8458b60ba1fd65d52c38d5c15e6d))
+
 ## [1.19.42](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.41...v1.19.42) (2026-10-23)
 
 
