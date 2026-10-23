@@ -1,19 +1,9 @@
 # Configuration
 
 All configuration is via environment variables, supplied by Doppler
-(`doppler run` locally, SSM in Lambda). See .env.example for the full list
-with descriptions; nothing reads a `.env` file.
-
-| Variable | Required | Description |
-|---|---|---|
-| GOOGLE_CREDENTIALS_JSON | Yes | Service account credentials JSON as a string |
-| HEALTHCHECKS_URL_WATCHER | Yes | Healthchecks.io ping URL |
-| SENTRY_DSN_COGS | No | Sentry DSN for error tracking; unset turns Sentry off |
-| LOGGING_LEVEL | No | DEBUG, INFO (default), WARNING |
-| CSV_SOURCE_FOLDER_ID | Yes | Drive folder ID watched by `dj-sets` |
-| NOTES_INPUT_FOLDER_ID | Yes | Drive folder ID watched by `wcs-notes` |
-| LIVE_HISTORY_FOLDER_ID | Yes | Drive folder ID watched by `live-history`: the live-history sheets themselves, edited in place |
-| GOOGLE_DRIVE_VOICE_INBOX_FOLDER_ID | Yes | Drive folder ID watched by `voice-notes` — same env-var name the transcription-cog voicenotes sub-pipeline reads, so the Doppler config holds one value for both |
+(`doppler run` locally, SSM in Lambda); nothing reads a `.env` file. Every
+variable, what it does and whether it is required, is in
+[`.env.example`](../.env.example).
 
 ## Watcher config
 
