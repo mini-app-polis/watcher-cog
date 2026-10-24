@@ -9,8 +9,8 @@ no folder checks all of them in turn — a hand invocation, or `main.py`.
 
 When a check fails, the tick raises after trying everything it was given,
 so the invocation is an error: that is what the function's error alarm
-counts, what Sentry groups into one issue, and why the heartbeat is not
-pinged.
+(declared in mini-app-polis/infra) counts, what Sentry groups into one
+issue, and why the heartbeat is not pinged.
 
 What this replaced reported the first failure of each outage to Discord and
 then stayed quiet, which needed memory across polls. A scheduled function

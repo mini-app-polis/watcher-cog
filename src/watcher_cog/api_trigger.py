@@ -13,7 +13,7 @@ outside production).
 **Gated to production.** A development watcher polls the same Drive
 folders production does, so anything it fires is a second trigger for
 production's uploads. On 2026-09-21 the dev API resolved itself as
-production and addressed ``deejay-jobs``, and only a missing credential
+production and addressed production's deejay-cog queue, and only a missing credential
 kept the dev watcher from starting production runs. Whether a trigger
 fires is decided here, where the folders are production's, not downstream.
 
