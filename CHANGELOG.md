@@ -1,3 +1,10 @@
+## [1.19.50](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.49...v1.19.50) (2026-10-25)
+
+
+### Bug Fixes
+
+* **deps:** bump the minor-and-patch group with 3 updates ([39ce7fc](https://github.com/mini-app-polis/watcher-cog/commit/39ce7fc76020b403f3a6830d93fa3da41ef7db37))
+
 ## [1.19.49](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.48...v1.19.49) (2026-10-25)
 
 
