@@ -1,11 +1,11 @@
-# ADR-002: Raw httpx for Prefect deployment API
+# ADR-0002: Raw httpx for Prefect deployment API
 
 Date: 2026-03-15
 
 ## Status
 
 Superseded 2026-04-23 — see Update below. Superseded again 2026-09-21 by
-[ADR-004](./ADR-004-api-trigger-per-file.md): watcher no longer calls Prefect
+[ADR-0004](./ADR-0004-api-trigger-per-file.md): watcher no longer calls Prefect
 at all.
 
 ## Context
@@ -25,7 +25,7 @@ PIPE-001 (which expects trigger cogs to reference `run_deployment` or
 equivalent Prefect Python client APIs). But pulling `prefect` into
 watcher-cog's runtime dependency tree has non-trivial cost — the SDK
 brings its own transitive graph, and watcher-cog's whole reason for
-being a trigger-cog rather than a flow (see ADR-001) is to stay
+being a trigger-cog rather than a flow (see ADR-0001) is to stay
 minimal and independent of Prefect's surface area.
 
 The raw-httpx path is a small, well-bounded footprint: one endpoint,
@@ -79,6 +79,6 @@ Net consequences relative to this ADR's original "Consequences" section:
   link from the watcher heartbeat logs to the downstream run history.
 - PIPE-001 clears on the next conformance run.
 - The hand-rolled bearer-token header and tenacity wrapper are gone.
-- ADR-001 (always-on trigger-cog, not a flow) is unaffected - this
+- ADR-0001 (always-on trigger-cog, not a flow) is unaffected - this
   migration changed only how the trigger calls Prefect, not what
   watcher-cog fundamentally is.

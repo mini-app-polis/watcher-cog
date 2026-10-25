@@ -1,24 +1,24 @@
-# ADR-004: Trigger through the API only, and per file for transcription-cog
+# ADR-0004: Trigger through the API only, and per file for transcription-cog
 
 Date: 2026-09-21
 
 ## Status
 
 Accepted — partially superseded 2026-09-26 by
-[ADR-005](./ADR-005-stateless-scheduled-watcher.md). Still in force: every
+[ADR-0005](./ADR-0005-stateless-scheduled-watcher.md). Still in force: every
 target is an API route, Prefect is gone, and a `per_file` watcher POSTs once
 per file with `drive_file_id`. No longer true: the diffing against the last
 poll, the start-up behaviour, the `seen`-set handling of partial failures,
 and dead-letter redrive as the recovery — the watcher now remembers nothing
 and the API's dispatch claims deduplicate.
 
-Supersedes [ADR-002](./ADR-002-raw-httpx-prefect-trigger.md).
+Supersedes [ADR-0002](./ADR-0002-raw-httpx-prefect-trigger.md).
 
 ## Context
 
 watcher-cog started every downstream run by calling Prefect's
 `create_flow_run` on a deployment. The fleet has moved off Prefect onto one
-SQS queue and one Lambda function per cog (ecosystem-standards ADR-009),
+SQS queue and one Lambda function per cog (ecosystem-standards ADR-0009),
 and api-kaianolevine-com is the only thing that writes to a queue.
 deejay-cog moved first: its two watchers POST `/v1/deejay/runs` and the API
 enqueues. transcription-cog is the last cog watcher triggers, so with it
