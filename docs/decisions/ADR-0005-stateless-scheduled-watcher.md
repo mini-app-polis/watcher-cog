@@ -1,4 +1,4 @@
-# ADR-005: A stateless watcher on a schedule, with the API deduplicating
+# ADR-0005: A stateless watcher on a schedule, with the API deduplicating
 
 Date: 2026-09-26
 
@@ -6,8 +6,8 @@ Date: 2026-09-26
 
 Accepted
 
-Supersedes [ADR-001](./ADR-001-always-on-not-a-flow.md) and
-[ADR-003](./ADR-003-polling-cadence.md).
+Supersedes [ADR-0001](./ADR-0001-always-on-not-a-flow.md) and
+[ADR-0003](./ADR-0003-polling-cadence.md).
 
 ## Context
 
@@ -17,7 +17,7 @@ difference. Every other cog had moved to a queue and a Lambda function.
 
 The memory was the problem. A restart had to decide whether a folder's
 contents were a backlog to fire or a baseline to ignore, and from inside
-the process the two were identical — ADR-004 and the baseline warnings
+the process the two were identical — ADR-0004 and the baseline warnings
 existed to paper over that. And a job that failed every retry sat in a
 dead-letter queue until someone redrove it, because nothing would ever
 ask for the file again.
@@ -58,7 +58,7 @@ a missed check is caught by the next one.
 
 - No baseline, no restart logic, no seen-set. A restart is not an event.
 - The dead-letter queue no longer needs redriving: the file still in its
-  folder is the retry. ADR-004's "redriving the dead-letter queue is the
+  folder is the retry. ADR-0004's "redriving the dead-letter queue is the
   recovery" no longer holds.
 - A file whose cog completes the work but fails to move it is processed
   again after six hours. Each cog's side effects must tolerate that, or

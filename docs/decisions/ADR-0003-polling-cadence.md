@@ -1,10 +1,10 @@
-# ADR-003: Polling cadence and idle-interval escalation
+# ADR-0003: Polling cadence and idle-interval escalation
 
 Date: 2026-03-15
 
 ## Status
 
-Superseded by [ADR-005](./ADR-005-stateless-scheduled-watcher.md)
+Superseded by [ADR-0005](./ADR-0005-stateless-scheduled-watcher.md)
 
 ## Context
 

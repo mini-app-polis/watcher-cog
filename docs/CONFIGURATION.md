@@ -24,4 +24,4 @@ cog's `mode`. Examples:
   with `drive_file_id`. transcription-cog's job is one file, because a sweep
   of its folder does not fit in one Lambda invocation.
 
-See [ADR-005](decisions/ADR-005-stateless-scheduled-watcher.md).
+See [ADR-0005](decisions/ADR-0005-stateless-scheduled-watcher.md).

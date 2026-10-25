@@ -1,10 +1,10 @@
-# ADR-001: Always-on Railway process, not a Prefect flow
+# ADR-0001: Always-on Railway process, not a Prefect flow
 
 Date: 2026-03-15
 
 ## Status
 
-Superseded by [ADR-005](./ADR-005-stateless-scheduled-watcher.md)
+Superseded by [ADR-0005](./ADR-0005-stateless-scheduled-watcher.md)
 
 ## Context
 
@@ -76,5 +76,5 @@ layer.
   run-history signals, flow-level retry configuration) do not apply
   here. This is reflected in `type: trigger-cog` in `evaluator.yaml`
   and in the PRIN-005 exemption.
-- Dependencies stay minimal: no Prefect SDK at runtime (see ADR-002
+- Dependencies stay minimal: no Prefect SDK at runtime (see ADR-0002
   for the related choice on how the Prefect API is actually called).
