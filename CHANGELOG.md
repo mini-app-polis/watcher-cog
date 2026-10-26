@@ -1,3 +1,10 @@
+## [1.19.51](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.50...v1.19.51) (2026-10-26)
+
+
+### Bug Fixes
+
+* **deps:** bump miniapppolis-common-utils to 6.27.0 ([ff0ebbd](https://github.com/mini-app-polis/watcher-cog/commit/ff0ebbd04173550801a6eaa038582a2e4f66bcab))
+
 ## [1.19.50](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.49...v1.19.50) (2026-10-25)
 
 
