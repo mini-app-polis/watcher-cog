@@ -28,6 +28,19 @@ def test_every_watched_folder_comes_from_configuration(folders: None) -> None:
     }
 
 
+def test_each_watcher_posts_to_its_cogs_route_with_its_mode(folders: None) -> None:
+    by_name = {w.name: w for w in get_watchers()}
+    routes = {name: (w.api_path, w.parameters["mode"]) for name, w in by_name.items()}
+    assert routes == {
+        "dj-sets": ("/v1/deejay/runs", "process-new-files"),
+        "live-history": ("/v1/deejay/runs", "ingest-live-history"),
+        "wcs-notes": ("/v1/transcription/runs", "wcs-transcripts"),
+        "voice-notes": ("/v1/transcription/runs", "voicenotes"),
+    }
+    assert by_name["wcs-notes"].per_file
+    assert by_name["voice-notes"].per_file
+
+
 def test_a_missing_live_history_folder_fails_at_startup(
     folders: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
