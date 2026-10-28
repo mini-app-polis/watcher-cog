@@ -67,7 +67,7 @@ Environment: loaded from SSM Parameter Store in Lambda, at cold start and again 
 
 Requires Python 3.11+, [uv](https://github.com/astral-sh/uv) and the
 [Doppler CLI](https://docs.doppler.com/docs/install-cli). Secrets come from
-Doppler's shared `dev` config — nothing reads a `.env` file, and local runs
+this repo's own Doppler `dev` config — nothing reads a `.env` file, and local runs
 never use `prd`.
 
 ```bash
