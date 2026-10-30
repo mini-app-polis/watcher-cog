@@ -60,6 +60,20 @@ def test_a_missing_live_history_folder_fails_at_startup(
         get_watchers()
 
 
+@pytest.mark.parametrize("value", [None, "", "   "], ids=["unset", "empty", "blank"])
+def test_without_a_music_folder_the_other_watchers_still_run(
+    folders: None, monkeypatch: pytest.MonkeyPatch, value: str | None
+) -> None:
+    if value is None:
+        monkeypatch.delenv("MUSIC_UPLOAD_SOURCE_FOLDER_ID")
+    else:
+        monkeypatch.setenv("MUSIC_UPLOAD_SOURCE_FOLDER_ID", value)
+
+    names = [w.name for w in get_watchers()]
+
+    assert names == ["dj-sets", "live-history", "wcs-notes", "voice-notes"]
+
+
 def test_a_watcher_without_an_api_path_is_refused() -> None:
     with pytest.raises(ValueError, match="dj-sets"):
         WatcherConfig(name="dj-sets", folder_id="csv-folder", api_path="")
