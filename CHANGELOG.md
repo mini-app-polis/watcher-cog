@@ -1,3 +1,17 @@
+# [1.20.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.56...v1.20.0) (2026-10-30)
+
+
+### Bug Fixes
+
+* **config:** leave music-uploads out when its folder is not set ([59e10d5](https://github.com/mini-app-polis/watcher-cog/commit/59e10d547f78faafb0de9dee4a3e3eb4ffad317c))
+* **deps:** bump miniapppolis-common-utils to 7.2.0 ([ff13dd5](https://github.com/mini-app-polis/watcher-cog/commit/ff13dd5114db580daecc6ec79745ed56bc0be389))
+* **deps:** bump miniapppolis-common-utils to 7.3.0 ([45118ba](https://github.com/mini-app-polis/watcher-cog/commit/45118ba437e20f7931680940b473f6cc7a6fb728))
+
+
+### Features
+
+* **config:** watch the music upload folder and start deejay-cog's retag-music mode ([db20129](https://github.com/mini-app-polis/watcher-cog/commit/db201295d303f1cdbffb9bb31d2633d376bf44da))
+
 ## [1.19.56](https://github.com/mini-app-polis/watcher-cog/compare/v1.19.55...v1.19.56) (2026-10-30)
 
 
