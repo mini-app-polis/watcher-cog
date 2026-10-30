@@ -40,7 +40,7 @@ The API owns the rules, behind its run endpoints:
 | Folder | Claim | A file still there later |
 |---|---|---|
 | Drained inbox (`drained_by_downstream=True`) — the cog moves a file out when done | by file id | Dispatched again after 6 hours, because its job has failed through every retry by then. After 3 dispatches it is given up on and reported once to the errors channel |
-| Edited in place (`drained_by_downstream=False`) — live-history's sheets | by file id and modifiedTime | Never re-dispatched; the next edit is a new version and a new job |
+| Edited in place (`drained_by_downstream=False`) — live-history's sheets, music-uploads' files | by file id and modifiedTime | Never re-dispatched; the next edit is a new version and a new job |
 
 The retry is the file sitting in the folder: the dead-letter queue never needs redriving. To retry a file that was given up on, fix or move it and clear its claim in api-kaianolevine-com.
 

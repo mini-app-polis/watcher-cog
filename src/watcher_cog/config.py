@@ -65,8 +65,8 @@ def _require(name: str) -> str:
 
 
 #: deejay-cog runs on Lambda behind its own queue, and the API is the only
-#: thing that enqueues onto it. Both dj-sets and live-history post here and
-#: differ only by the mode they pass.
+#: thing that enqueues onto it. dj-sets, live-history and music-uploads post
+#: here and differ only by the mode they pass.
 _DEEJAY_RUNS_PATH = "/v1/deejay/runs"
 
 #: transcription-cog runs on Lambda behind its own queue, one file per job:
@@ -93,6 +93,17 @@ def get_watchers() -> list[WatcherConfig]:
             # new modifiedTime is the work, not its presence.
             drained_by_downstream=False,
             parameters={"mode": "ingest-live-history"},
+        ),
+        WatcherConfig(
+            name="music-uploads",
+            folder_id=_require("MUSIC_UPLOAD_SOURCE_FOLDER_ID"),
+            api_path=_DEEJAY_RUNS_PATH,
+            # The run tags each file in place and leaves it in the folder,
+            # so a file's new modifiedTime is the work. Its own write is one
+            # such version, and one more run; that this ends there relies on
+            # retag-music not writing a file whose tags already match.
+            drained_by_downstream=False,
+            parameters={"mode": "retag-music"},
         ),
         WatcherConfig(
             name="wcs-notes",

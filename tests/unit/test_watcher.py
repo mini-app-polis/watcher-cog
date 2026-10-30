@@ -77,6 +77,67 @@ def test_an_in_place_file_without_a_version_is_refused(world: SimpleNamespace) -
     world.fire.assert_not_called()
 
 
+class _RewritingCog:
+    """The API's per-version claims, and a cog that tags files in place.
+
+    A new claim runs the job straight away. The job writes every file whose
+    tags differ from what it would write, which gives that file a new
+    modifiedTime; with ``rewrites_matching`` it writes every file every run.
+    """
+
+    def __init__(
+        self, files: list[SimpleNamespace], *, rewrites_matching: bool
+    ) -> None:
+        self.files = files
+        self.rewrites_matching = rewrites_matching
+        self.claims: set[tuple[str, str]] = set()
+        self.tagged: set[str] = set()
+        self.jobs = 0
+        self.clock = 0
+
+    def fire(self, path: str, parameters: dict[str, object]) -> Fired:
+        refs = parameters["drive_files"]
+        assert isinstance(refs, list)
+        new = {(r["id"], r["revision"]) for r in refs} - self.claims
+        if not new:
+            return Fired(message_id=f"m-{self.jobs}", deduplicated=True)
+        self.claims |= new
+        self.jobs += 1
+        for f in self.files:
+            if self.rewrites_matching or f.id not in self.tagged:
+                self.tagged.add(f.id)
+                self.clock += 1
+                f.modified_time = f"2026-10-30T12:00:{self.clock:02d}Z"
+        return Fired(message_id=f"m-{self.jobs}")
+
+
+def _queued_per_tick(world: SimpleNamespace, cog: _RewritingCog) -> list[int]:
+    world.files = cog.files
+    world.fire.side_effect = cog.fire
+    cfg = _cfg(drained_by_downstream=False, parameters={"mode": "retag-music"})
+    return [len(watcher.check(cfg).queued) for _ in range(5)]
+
+
+def test_a_run_that_rewrites_its_files_settles(world: SimpleNamespace) -> None:
+    """music-uploads: the write is one more version, then nothing changes."""
+    files = [_file("a", "2026-10-30T11:00:00Z"), _file("b", "2026-10-30T11:00:00Z")]
+    cog = _RewritingCog(files, rewrites_matching=False)
+
+    assert _queued_per_tick(world, cog) == [1, 1, 0, 0, 0]
+    assert cog.jobs == 2
+
+
+def test_a_run_that_always_rewrites_would_never_settle(
+    world: SimpleNamespace,
+) -> None:
+    """Per-version claims alone do not end it: the cog must skip a file whose
+    tags already match."""
+    files = [_file("a", "2026-10-30T11:00:00Z")]
+    cog = _RewritingCog(files, rewrites_matching=True)
+
+    assert _queued_per_tick(world, cog) == [1, 1, 1, 1, 1]
+
+
 def test_a_per_file_watcher_asks_once_per_file(world: SimpleNamespace) -> None:
     world.files = [_file("a"), _file("b")]
 

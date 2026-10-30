@@ -16,10 +16,16 @@ files currently in the folder, and the API claims each file and enqueues
 onto the owning cog's queue only when a claim is new. `parameters` pins the
 cog's `mode`. Examples:
 
-- `dj-sets` and `live-history` POST `/v1/deejay/runs` once per tick, naming
-  every file in `drive_files`. deejay-cog's job is a sweep of the folder.
-  live-history's sheets never leave their folder, so each is named with its
-  modifiedTime and claimed once per version (`drained_by_downstream=False`).
+- `dj-sets`, `live-history` and `music-uploads` POST `/v1/deejay/runs` once
+  per tick, naming every file in `drive_files`. deejay-cog's job is a sweep
+  of the folder. live-history's sheets and music-uploads' files never leave
+  their folder, so each is named with its modifiedTime and claimed once per
+  version (`drained_by_downstream=False`).
+- `music-uploads` (`MUSIC_UPLOAD_SOURCE_FOLDER_ID`) asks for deejay-cog's
+  `retag-music` mode, which writes the catalog's tags over the files it
+  reads. Each write is a new modifiedTime, so a written file is asked for
+  once more; that run finds its tags already match and writes nothing, so
+  the version stops changing and later ticks are already claimed.
 - `wcs-notes` and `voice-notes` POST `/v1/transcription/runs` once per file,
   with `drive_file_id`. transcription-cog's job is one file, because a sweep
   of its folder does not fit in one Lambda invocation.
