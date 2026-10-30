@@ -64,9 +64,13 @@ def _require(name: str) -> str:
     return v
 
 
+def _optional(name: str) -> str:
+    return os.getenv(name, "").strip()
+
+
 #: deejay-cog runs on Lambda behind its own queue, and the API is the only
-#: thing that enqueues onto it. Both dj-sets and live-history post here and
-#: differ only by the mode they pass.
+#: thing that enqueues onto it. dj-sets, live-history and music-uploads post
+#: here and differ only by the mode they pass.
 _DEEJAY_RUNS_PATH = "/v1/deejay/runs"
 
 #: transcription-cog runs on Lambda behind its own queue, one file per job:
@@ -76,7 +80,12 @@ _TRANSCRIPTION_RUNS_PATH = "/v1/transcription/runs"
 
 
 def get_watchers() -> list[WatcherConfig]:
-    """Build watcher config from environment."""
+    """Build watcher config from environment.
+
+    music-uploads is optional: with ``MUSIC_UPLOAD_SOURCE_FOLDER_ID`` unset it
+    is left out and every other watcher runs as usual. The rest are required.
+    """
+    music_folder = _optional("MUSIC_UPLOAD_SOURCE_FOLDER_ID")
     return [
         WatcherConfig(
             name="dj-sets",
@@ -93,6 +102,24 @@ def get_watchers() -> list[WatcherConfig]:
             # new modifiedTime is the work, not its presence.
             drained_by_downstream=False,
             parameters={"mode": "ingest-live-history"},
+        ),
+        *(
+            [
+                WatcherConfig(
+                    name="music-uploads",
+                    folder_id=music_folder,
+                    api_path=_DEEJAY_RUNS_PATH,
+                    # The run tags each file in place and leaves it in the
+                    # folder, so a file's new modifiedTime is the work. Its
+                    # own write is one such version, and one more run; that
+                    # this ends there relies on retag-music not writing a
+                    # file whose tags already match.
+                    drained_by_downstream=False,
+                    parameters={"mode": "retag-music"},
+                )
+            ]
+            if music_folder
+            else []
         ),
         WatcherConfig(
             name="wcs-notes",
