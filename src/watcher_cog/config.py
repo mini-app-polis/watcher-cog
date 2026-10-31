@@ -79,6 +79,36 @@ _DEEJAY_RUNS_PATH = "/v1/deejay/runs"
 _TRANSCRIPTION_RUNS_PATH = "/v1/transcription/runs"
 
 
+#: Every name this cog's function is given, with the value in effect when the
+#: name is empty: its own folder ids and heartbeat URL, and the names
+#: miniapppolis-common-utils reads on its behalf.
+_SETTINGS_DEFAULTS: dict[str, str] = {
+    "CSV_SOURCE_FOLDER_ID": "",
+    "GOOGLE_CREDENTIALS_JSON": "",
+    "GOOGLE_DRIVE_VOICE_INBOX_FOLDER_ID": "",
+    "HEALTHCHECKS_URL_WATCHER": "",
+    "LIVE_HISTORY_FOLDER_ID": "",
+    "LOGGING_LEVEL": "INFO",
+    "MUSIC_UPLOAD_SOURCE_FOLDER_ID": "",
+    "NOTES_INPUT_FOLDER_ID": "",
+    "SENTRY_DSN_COGS": "",
+    "WATCHER_COG_API_KEY": "",
+}
+
+
+def effective_settings() -> dict[str, str]:
+    """Every setting this cog reads, resolved now, with its default applied.
+
+    For the startup report (``mini_app_polis.environment.log_settings``),
+    which shows a value only for names on ``SETTINGS_ALLOWLIST``. Nothing is
+    required here: a missing folder id is reported as unset, and still fails
+    ``get_watchers()``.
+    """
+    return {
+        name: _optional(name) or default for name, default in _SETTINGS_DEFAULTS.items()
+    }
+
+
 def get_watchers() -> list[WatcherConfig]:
     """Build watcher config from environment.
 
