@@ -1,3 +1,15 @@
+# [1.21.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.20.2...v1.21.0) (2026-10-31)
+
+
+### Bug Fixes
+
+* **deps:** bump miniapppolis-common-utils to 7.8.0 ([c8b8cb3](https://github.com/mini-app-polis/watcher-cog/commit/c8b8cb30929dc7fc1f28c64be68daa2d2761c40d))
+
+
+### Features
+
+* log effective settings once at cold start ([ca456d0](https://github.com/mini-app-polis/watcher-cog/commit/ca456d084d32a203d4638cfe3b8df9804ff5d113))
+
 ## [1.20.2](https://github.com/mini-app-polis/watcher-cog/compare/v1.20.1...v1.20.2) (2026-10-31)
 
 
