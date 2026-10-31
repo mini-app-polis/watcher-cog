@@ -46,6 +46,23 @@ def test_a_clean_tick_checks_every_folder_and_pings(
     ping.assert_called_once()
 
 
+def test_a_tick_does_not_report_settings_again(
+    monkeypatch: pytest.MonkeyPatch, ping: MagicMock
+) -> None:
+    """The report is once per cold start, at import; a warm tick is quiet."""
+    report = MagicMock()
+    monkeypatch.setattr(handler, "log_settings", report)
+    monkeypatch.setattr(
+        handler.watcher,
+        "check",
+        lambda config, deadline=None: watcher.Check(watcher=config.name),
+    )
+
+    handler.lambda_handler({}, None)
+
+    report.assert_not_called()
+
+
 def test_a_failed_folder_fails_the_tick_after_the_rest(
     monkeypatch: pytest.MonkeyPatch, ping: MagicMock
 ) -> None:

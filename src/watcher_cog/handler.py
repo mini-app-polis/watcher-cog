@@ -32,10 +32,11 @@ from typing import Any
 import sentry_sdk
 from mini_app_polis import load_secrets
 from mini_app_polis import logger as logger_mod
+from mini_app_polis.environment import log_settings
 from mini_app_polis.sentry import init_sentry
 
 from watcher_cog import api_trigger, heartbeat, watcher
-from watcher_cog.config import get_watchers
+from watcher_cog.config import effective_settings, get_watchers
 
 log = logger_mod.get_logger()
 
@@ -44,6 +45,10 @@ log = logger_mod.get_logger()
 # An empty DSN in production logs an ERROR rather than passing silently
 # (CD-038); the service tag tells this cog's events apart in the shared project.
 init_sentry("watcher-cog")
+# Once per cold start too, not per tick: one line per setting, with a value
+# only for names on SETTINGS_ALLOWLIST. A warm tick refreshes its settings
+# but does not report them again.
+log_settings(effective_settings())
 
 
 class TickFailed(RuntimeError):

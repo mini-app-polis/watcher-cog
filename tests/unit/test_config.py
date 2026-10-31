@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-import pytest
+import logging
 
-from watcher_cog.config import WatcherConfig, get_watchers
+import pytest
+from mini_app_polis.environment import log_settings
+
+from watcher_cog.config import WatcherConfig, effective_settings, get_watchers
 
 FOLDERS = {
     "CSV_SOURCE_FOLDER_ID": "csv-folder",
@@ -77,3 +80,22 @@ def test_without_a_music_folder_the_other_watchers_still_run(
 def test_a_watcher_without_an_api_path_is_refused() -> None:
     with pytest.raises(ValueError, match="dj-sets"):
         WatcherConfig(name="dj-sets", folder_id="csv-folder", api_path="")
+
+
+def test_the_startup_report_shows_values_only_for_allowlisted_settings(
+    folders: None, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("SETTINGS_ALLOWLIST", "CSV_SOURCE_FOLDER_ID,LOGGING_LEVEL")
+    monkeypatch.delenv("LOGGING_LEVEL", raising=False)
+    monkeypatch.setenv("WATCHER_COG_API_KEY", "not-for-the-logs")
+    monkeypatch.delenv("SENTRY_DSN_COGS", raising=False)
+
+    with caplog.at_level(logging.INFO, logger="mini_app_polis"):
+        log_settings(effective_settings())
+
+    lines = [r.getMessage() for r in caplog.records]
+    assert "CSV_SOURCE_FOLDER_ID=csv-folder (set)" in lines
+    assert "LOGGING_LEVEL=INFO (default)" in lines
+    assert "WATCHER_COG_API_KEY (set)" in lines
+    assert "SENTRY_DSN_COGS (unset)" in lines
+    assert not any("not-for-the-logs" in line for line in lines)
