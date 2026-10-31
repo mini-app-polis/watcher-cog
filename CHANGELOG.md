@@ -1,3 +1,11 @@
+## [1.20.2](https://github.com/mini-app-polis/watcher-cog/compare/v1.20.1...v1.20.2) (2026-10-31)
+
+
+### Bug Fixes
+
+* **deps:** bump miniapppolis-common-utils to 7.7.0 ([abd5934](https://github.com/mini-app-polis/watcher-cog/commit/abd5934ec76313818ab4c84b1656c339c88ea1ac))
+* **deps:** patch vulnerable dependencies (pyasn1) ([02a36d1](https://github.com/mini-app-polis/watcher-cog/commit/02a36d1906edfeeee74e40a77d3ba667a30b2e13))
+
 ## [1.20.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.20.0...v1.20.1) (2026-10-30)
 
 
