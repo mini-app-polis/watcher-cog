@@ -187,6 +187,21 @@ def test_an_unknown_folder_name_fails_loudly(
     ping.assert_not_called()
 
 
+def test_an_optional_folder_that_is_not_set_is_skipped_not_failed(
+    monkeypatch: pytest.MonkeyPatch, ping: MagicMock
+) -> None:
+    """Its schedule target still fires; with no folder there is nothing to do."""
+    check = MagicMock()
+    monkeypatch.setattr(handler.watcher, "check", check)
+    monkeypatch.setattr(handler, "disabled_watchers", lambda: {"c": "C_FOLDER_ID"})
+
+    result = handler.lambda_handler({"watcher": "c"}, None)
+
+    assert result == {"watcher": "c", "queued": 0, "deduplicated": 0, "files": 0}
+    check.assert_not_called()
+    ping.assert_not_called()
+
+
 def test_the_deadline_leaves_room_for_one_ask_inside_the_timeout(
     monkeypatch: pytest.MonkeyPatch, ping: MagicMock
 ) -> None:

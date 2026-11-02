@@ -5,7 +5,12 @@ import logging
 import pytest
 from mini_app_polis.environment import log_settings
 
-from watcher_cog.config import WatcherConfig, effective_settings, get_watchers
+from watcher_cog.config import (
+    WatcherConfig,
+    disabled_watchers,
+    effective_settings,
+    get_watchers,
+)
 
 FOLDERS = {
     "CSV_SOURCE_FOLDER_ID": "csv-folder",
@@ -75,6 +80,11 @@ def test_without_a_music_folder_the_other_watchers_still_run(
     names = [w.name for w in get_watchers()]
 
     assert names == ["dj-sets", "live-history", "wcs-notes", "voice-notes"]
+    assert disabled_watchers() == {"music-uploads": "MUSIC_UPLOAD_SOURCE_FOLDER_ID"}
+
+
+def test_with_a_music_folder_no_watcher_is_disabled(folders: None) -> None:
+    assert disabled_watchers() == {}
 
 
 def test_a_watcher_without_an_api_path_is_refused() -> None:

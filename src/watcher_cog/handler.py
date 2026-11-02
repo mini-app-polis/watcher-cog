@@ -36,7 +36,7 @@ from mini_app_polis.environment import log_settings
 from mini_app_polis.sentry import init_sentry
 
 from watcher_cog import api_trigger, heartbeat, watcher
-from watcher_cog.config import effective_settings, get_watchers
+from watcher_cog.config import disabled_watchers, effective_settings, get_watchers
 
 log = logger_mod.get_logger()
 
@@ -67,12 +67,18 @@ def run_once(
 
     ``only`` is a watcher name; an unknown one raises ``ValueError`` rather
     than checking nothing, so a schedule target that drifts from the config
-    fails loudly instead of leaving its folder unwatched.
+    fails loudly instead of leaving its folder unwatched. An optional
+    watcher whose folder is not set is known, not unknown: its tick is
+    skipped and checks nothing, and the heartbeat is left to the others.
     """
     configs = get_watchers()
     if only is not None:
         configs = [c for c in configs if c.name == only]
         if not configs:
+            unset = disabled_watchers().get(only)
+            if unset:
+                log.info("[%s] skipped: %s is not set", only, unset)
+                return []
             known = ", ".join(c.name for c in get_watchers())
             raise ValueError(f"no watcher named {only!r} (known: {known})")
 
