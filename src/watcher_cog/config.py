@@ -79,6 +79,14 @@ _DEEJAY_RUNS_PATH = "/v1/deejay/runs"
 _TRANSCRIPTION_RUNS_PATH = "/v1/transcription/runs"
 
 
+#: Watchers that run only when their folder is set, each with the variable
+#: holding it. Unset, the watcher is left out of ``get_watchers()``, and a
+#: tick that names it is skipped (``disabled_watchers()``) rather than failed.
+OPTIONAL_WATCHERS: dict[str, str] = {
+    "music-uploads": "MUSIC_UPLOAD_SOURCE_FOLDER_ID",
+}
+
+
 #: Every name this cog's function is given, with the value in effect when the
 #: name is empty: its own folder ids and heartbeat URL, and the names
 #: miniapppolis-common-utils reads on its behalf.
@@ -109,13 +117,18 @@ def effective_settings() -> dict[str, str]:
     }
 
 
+def disabled_watchers() -> dict[str, str]:
+    """Optional watchers whose folder is not set, each with its variable."""
+    return {name: var for name, var in OPTIONAL_WATCHERS.items() if not _optional(var)}
+
+
 def get_watchers() -> list[WatcherConfig]:
     """Build watcher config from environment.
 
     music-uploads is optional: with ``MUSIC_UPLOAD_SOURCE_FOLDER_ID`` unset it
     is left out and every other watcher runs as usual. The rest are required.
     """
-    music_folder = _optional("MUSIC_UPLOAD_SOURCE_FOLDER_ID")
+    music_folder = _optional(OPTIONAL_WATCHERS["music-uploads"])
     return [
         WatcherConfig(
             name="dj-sets",
