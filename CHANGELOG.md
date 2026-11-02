@@ -1,3 +1,10 @@
+## [1.21.4](https://github.com/mini-app-polis/watcher-cog/compare/v1.21.3...v1.21.4) (2026-11-02)
+
+
+### Bug Fixes
+
+* **handler:** skip the music-uploads tick when its folder is not set ([7ecab12](https://github.com/mini-app-polis/watcher-cog/commit/7ecab12adc2445eb160e405fd6a32e8260858653))
+
 ## [1.21.3](https://github.com/mini-app-polis/watcher-cog/compare/v1.21.2...v1.21.3) (2026-11-02)
 
 
