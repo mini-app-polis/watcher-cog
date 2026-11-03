@@ -14,6 +14,7 @@ A scheduled function that watches Google Drive folders and asks api-kaianolevine
 - Reports to the runs channel when work was queued, and stays silent when every file was already claimed
 - Pings Healthchecks.io after every tick in which its folder was checked (one check for all four)
 - Gives each ask one 10s attempt, and starts no new ask once one more would not fit inside the function's timeout — the next tick is the retry
+- Runs scheduled jobs: an invocation with `{"job": "<name>"}` asks the API for that job's run once and checks no folder. Each job has its own schedule in `mini-app-polis/infra`; `library-backfill` asks deejay-cog to retag the next chunk of the music library each night
 
 **What it does not do:**
 - Remember anything. There is no seen-set and no baseline: every tick asks for everything present, and the API's dispatch claims make the repeats no-ops
@@ -115,8 +116,9 @@ Each folder is its own invocation, so one broken or slow folder fails only its o
 ```
 src/watcher_cog/
 ├── __init__.py       # loads SSM secrets at import
-├── handler.py        # Lambda entry point: one tick over the named watcher
+├── handler.py        # Lambda entry point: one tick over the named watcher, or one job
 ├── watcher.py        # one folder: list it, ask for what is there
+├── jobs.py           # scheduled jobs: asks made on a schedule, not for a folder
 ├── api_trigger.py    # POST the owning cog's runs route
 ├── drive_client.py   # Google Drive listing
 ├── heartbeat.py      # Healthchecks.io ping
