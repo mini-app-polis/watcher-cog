@@ -1,3 +1,15 @@
+# [1.22.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.21.6...v1.22.0) (2026-11-03)
+
+
+### Bug Fixes
+
+* **deps:** bump miniapppolis-common-utils to 7.10.0 ([d5cc46d](https://github.com/mini-app-polis/watcher-cog/commit/d5cc46d6b368565030b9451ee52edcdca5f927c6))
+
+
+### Features
+
+* **config:** the music-uploads watcher asks for the new-music intake on NEW_MUSIC_INPUT_FOLDER_ID ([27fa6c9](https://github.com/mini-app-polis/watcher-cog/commit/27fa6c9c221a6a134675824ff071236f148f36f7))
+
 ## [1.21.6](https://github.com/mini-app-polis/watcher-cog/compare/v1.21.5...v1.21.6) (2026-11-03)
 
 
