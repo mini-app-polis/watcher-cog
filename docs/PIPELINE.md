@@ -24,3 +24,16 @@ All processing logic lives in the target cog.
 
 Configured in src/watcher_cog/config.py via get_watchers().
 Each WatcherConfig maps one Drive folder to one API route.
+
+## Scheduled jobs
+
+Some work is asked for because it is time, not because a file arrived.
+An invocation with `{"job": "<name>"}` asks the API once for that job's
+run and checks no folder. The jobs are listed in src/watcher_cog/jobs.py
+(JOBS); each has its own EventBridge schedule, declared in
+mini-app-polis/infra. An unknown job name fails the invocation.
+
+What the job's run then does, and whether it writes anything, is the
+receiving cog's to decide: `library-backfill` asks deejay-cog for a
+library-backfill run, which does nothing until deejay-cog's own mode
+setting turns it on.
