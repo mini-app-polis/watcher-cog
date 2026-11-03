@@ -1,3 +1,10 @@
+# [1.23.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.22.0...v1.23.0) (2026-11-03)
+
+
+### Features
+
+* **jobs:** a scheduled job asks the API for a run on its own clock, starting with deejay-cog's library-backfill ([e093981](https://github.com/mini-app-polis/watcher-cog/commit/e093981de6a8eaf7821d1d72f5d466c6dc9f88ed))
+
 # [1.22.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.21.6...v1.22.0) (2026-11-03)
 
 
