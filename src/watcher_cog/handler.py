@@ -7,6 +7,10 @@ others' time or fail their tick: each has the whole function timeout to
 itself, and each failure is its own error invocation. An event that names
 no folder checks all of them in turn — a hand invocation, or `main.py`.
 
+An event that names a ``job`` instead (``{"job": "<name>"}``) is a
+scheduled job (:mod:`watcher_cog.jobs`): it asks the API once and checks no
+folder.
+
 When a check fails, the tick raises after trying everything it was given,
 so the invocation is an error: that is what the function's error alarm
 (declared in mini-app-polis/infra) counts, what Sentry groups into one
@@ -35,7 +39,7 @@ from mini_app_polis import logger as logger_mod
 from mini_app_polis.environment import log_settings
 from mini_app_polis.sentry import init_sentry
 
-from watcher_cog import api_trigger, heartbeat, watcher
+from watcher_cog import api_trigger, heartbeat, jobs, watcher
 from watcher_cog.config import disabled_watchers, effective_settings, get_watchers
 
 log = logger_mod.get_logger()
@@ -123,6 +127,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:  # no
     # parameter that has gone missing fails the tick, which the alarm sees.
     load_secrets(refresh=True)
     logger_mod.apply_level()
+    job = (event or {}).get("job")
+    if job:
+        return {"job": job, "message_id": jobs.run_job(job)}
     only = (event or {}).get("watcher")
     results = run_once(only=only, deadline=_deadline(context))
     return {
