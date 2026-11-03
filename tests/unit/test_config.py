@@ -15,7 +15,7 @@ from watcher_cog.config import (
 FOLDERS = {
     "CSV_SOURCE_FOLDER_ID": "csv-folder",
     "LIVE_HISTORY_FOLDER_ID": "live-history-folder",
-    "MUSIC_UPLOAD_SOURCE_FOLDER_ID": "music-folder",
+    "NEW_MUSIC_INPUT_FOLDER_ID": "music-folder",
     "NOTES_INPUT_FOLDER_ID": "notes-folder",
     "GOOGLE_DRIVE_VOICE_INBOX_FOLDER_ID": "voice-folder",
 }
@@ -44,7 +44,7 @@ def test_each_watcher_posts_to_its_cogs_route_with_its_mode(folders: None) -> No
     assert routes == {
         "dj-sets": ("/v1/deejay/runs", "process-new-files"),
         "live-history": ("/v1/deejay/runs", "ingest-live-history"),
-        "music-uploads": ("/v1/deejay/runs", "retag-music"),
+        "music-uploads": ("/v1/deejay/runs", "new-music"),
         "wcs-notes": ("/v1/transcription/runs", "wcs-transcripts"),
         "voice-notes": ("/v1/transcription/runs", "voicenotes"),
     }
@@ -53,7 +53,8 @@ def test_each_watcher_posts_to_its_cogs_route_with_its_mode(folders: None) -> No
 
 
 def test_files_tagged_in_place_are_claimed_per_version(folders: None) -> None:
-    """music-uploads' files stay in their folder, like live-history's sheets."""
+    """music-uploads' files are claimed per version, like live-history's
+    sheets: in deejay-cog's off and dry-run modes they stay in the folder."""
     by_name = {w.name: w for w in get_watchers()}
     for name in ("live-history", "music-uploads"):
         assert not by_name[name].drained_by_downstream
@@ -73,14 +74,14 @@ def test_without_a_music_folder_the_other_watchers_still_run(
     folders: None, monkeypatch: pytest.MonkeyPatch, value: str | None
 ) -> None:
     if value is None:
-        monkeypatch.delenv("MUSIC_UPLOAD_SOURCE_FOLDER_ID")
+        monkeypatch.delenv("NEW_MUSIC_INPUT_FOLDER_ID")
     else:
-        monkeypatch.setenv("MUSIC_UPLOAD_SOURCE_FOLDER_ID", value)
+        monkeypatch.setenv("NEW_MUSIC_INPUT_FOLDER_ID", value)
 
     names = [w.name for w in get_watchers()]
 
     assert names == ["dj-sets", "live-history", "wcs-notes", "voice-notes"]
-    assert disabled_watchers() == {"music-uploads": "MUSIC_UPLOAD_SOURCE_FOLDER_ID"}
+    assert disabled_watchers() == {"music-uploads": "NEW_MUSIC_INPUT_FOLDER_ID"}
 
 
 def test_with_a_music_folder_no_watcher_is_disabled(folders: None) -> None:
