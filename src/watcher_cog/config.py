@@ -83,7 +83,7 @@ _TRANSCRIPTION_RUNS_PATH = "/v1/transcription/runs"
 #: holding it. Unset, the watcher is left out of ``get_watchers()``, and a
 #: tick that names it is skipped (``disabled_watchers()``) rather than failed.
 OPTIONAL_WATCHERS: dict[str, str] = {
-    "music-uploads": "MUSIC_UPLOAD_SOURCE_FOLDER_ID",
+    "music-uploads": "NEW_MUSIC_INPUT_FOLDER_ID",
 }
 
 
@@ -97,7 +97,7 @@ _SETTINGS_DEFAULTS: dict[str, str] = {
     "HEALTHCHECKS_URL_WATCHER": "",
     "LIVE_HISTORY_FOLDER_ID": "",
     "LOGGING_LEVEL": "INFO",
-    "MUSIC_UPLOAD_SOURCE_FOLDER_ID": "",
+    "NEW_MUSIC_INPUT_FOLDER_ID": "",
     "NOTES_INPUT_FOLDER_ID": "",
     "SENTRY_DSN_COGS": "",
     "WATCHER_COG_API_KEY": "",
@@ -125,7 +125,7 @@ def disabled_watchers() -> dict[str, str]:
 def get_watchers() -> list[WatcherConfig]:
     """Build watcher config from environment.
 
-    music-uploads is optional: with ``MUSIC_UPLOAD_SOURCE_FOLDER_ID`` unset it
+    music-uploads is optional: with ``NEW_MUSIC_INPUT_FOLDER_ID`` unset it
     is left out and every other watcher runs as usual. The rest are required.
     """
     music_folder = _optional(OPTIONAL_WATCHERS["music-uploads"])
@@ -152,13 +152,13 @@ def get_watchers() -> list[WatcherConfig]:
                     name="music-uploads",
                     folder_id=music_folder,
                     api_path=_DEEJAY_RUNS_PATH,
-                    # The run tags each file in place and leaves it in the
-                    # folder, so a file's new modifiedTime is the work. Its
-                    # own write is one such version, and one more run; that
-                    # this ends there relies on retag-music not writing a
-                    # file whose tags already match.
+                    # Claimed once per version, not as a draining inbox: in
+                    # deejay-cog's off and dry-run modes a file stays here
+                    # untouched, and must not be asked for again every few
+                    # hours and then reported as given up. In write mode
+                    # the intake moves each file out once it is handled.
                     drained_by_downstream=False,
-                    parameters={"mode": "retag-music"},
+                    parameters={"mode": "new-music"},
                 )
             ]
             if music_folder

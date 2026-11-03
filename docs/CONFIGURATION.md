@@ -18,15 +18,14 @@ cog's `mode`. Examples:
 
 - `dj-sets`, `live-history` and `music-uploads` POST `/v1/deejay/runs` once
   per tick, naming every file in `drive_files`. deejay-cog's job is a sweep
-  of the folder. live-history's sheets and music-uploads' files never leave
-  their folder, so each is named with its modifiedTime and claimed once per
+  of the folder. live-history's sheets never leave their folder, and
+  music-uploads' files stay in theirs while deejay-cog's intake is off or in
+  dry-run, so each is named with its modifiedTime and claimed once per
   version (`drained_by_downstream=False`).
-- `music-uploads` (`MUSIC_UPLOAD_SOURCE_FOLDER_ID`) asks for deejay-cog's
-  `retag-music` mode, which writes the catalog's tags over the files it
-  reads. Each write is a new modifiedTime, so a written file is asked for
-  once more; that run finds its tags already match and writes nothing, so
-  the version stops changing and later ticks are already claimed. The
-  variable is optional: unset or empty, music-uploads is left out of
+- `music-uploads` (`NEW_MUSIC_INPUT_FOLDER_ID`) asks for deejay-cog's
+  `new-music` mode, which tags each new file, copies it to its destination
+  and moves the original out of the folder. Whether that mode writes
+  anything is deejay-cog's own setting (`NEW_MUSIC_MODE`, off unless set). The variable is optional: unset or empty, music-uploads is left out of
   `get_watchers()`, its scheduled tick is skipped rather than failed, and the
   other watchers run as usual. The others are required and fail at startup
   when missing.
