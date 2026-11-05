@@ -1,3 +1,10 @@
+# [1.25.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.24.0...v1.25.0) (2026-11-05)
+
+
+### Features
+
+* **jobs:** ask the API for its hourly quiet sweep of API faults ([3dbbca9](https://github.com/mini-app-polis/watcher-cog/commit/3dbbca91114f997a34ef08a8ae0c671bd12bb92d))
+
 # [1.24.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.23.2...v1.24.0) (2026-11-05)
 
 
