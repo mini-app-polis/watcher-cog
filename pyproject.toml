@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "httpx",
-    "miniapppolis-common-utils>=7.0.0,<8",
+    "miniapppolis-common-utils[google]>=8.0.0,<9",
     "sentry-sdk",
 ]
 
