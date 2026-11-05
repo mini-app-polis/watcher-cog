@@ -1,3 +1,11 @@
+## [1.25.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.25.0...v1.25.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **deps:** bump miniapppolis-common-utils to 7.19.0 ([8bfe85a](https://github.com/mini-app-polis/watcher-cog/commit/8bfe85a6a8b356629fa0b6fb7d784dc6d676e069))
+* **deps:** bump oauthlib to 4.0.1 and miniapppolis-common-utils to 7.20.0 ([fc08e40](https://github.com/mini-app-polis/watcher-cog/commit/fc08e4050dd7b4040026e667184e3df583b6e866))
+
 # [1.25.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.24.0...v1.25.0) (2026-11-05)
 
 
