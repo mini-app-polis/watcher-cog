@@ -17,7 +17,7 @@ def fire(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
 def test_the_library_backfill_job_asks_deejay_for_a_backfill_run(
     fire: MagicMock,
 ) -> None:
-    assert jobs.run_job("library-backfill") == "m-1"
+    assert jobs.run_job("library-backfill") == {"message_id": "m-1"}
     fire.assert_called_once_with(
         "/v1/deejay/runs", parameters={"mode": "library-backfill"}
     )
@@ -56,3 +56,70 @@ def test_an_event_naming_a_job_runs_it_and_checks_no_folder(
     assert result == {"job": "library-backfill", "message_id": "m-1"}
     check.assert_not_called()
     ping.assert_not_called()
+
+
+@pytest.fixture
+def check(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    check = MagicMock(return_value={"quiet": 2, "closed": 2})
+    monkeypatch.setattr(jobs.api_trigger, "check", check)
+    return check
+
+
+def test_the_quiet_sweep_job_asks_the_api_to_close_quiet_faults(
+    check: MagicMock, fire: MagicMock
+) -> None:
+    assert jobs.run_job("api-fault-quiet-sweep") == {
+        "result": {"quiet": 2, "closed": 2}
+    }
+    check.assert_called_once_with("/v1/signals/api-faults/quiet-sweep", parameters={})
+    fire.assert_not_called()
+
+
+def test_an_event_naming_a_check_job_returns_what_it_did(
+    monkeypatch: pytest.MonkeyPatch, check: MagicMock
+) -> None:
+    monkeypatch.setattr(handler, "load_secrets", MagicMock())
+    result = handler.lambda_handler({"job": "api-fault-quiet-sweep"}, None)
+    assert result == {
+        "job": "api-fault-quiet-sweep",
+        "result": {"quiet": 2, "closed": 2},
+    }
+
+
+def test_every_check_job_names_a_check_endpoint() -> None:
+    for job in jobs.JOBS.values():
+        if job.kind == "check":
+            assert job.api_path in api_trigger.CHECK_ENDPOINTS
+
+
+def test_a_check_outside_production_calls_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        api_trigger, "current_environment", lambda: api_trigger.Environment.DEVELOPMENT
+    )
+    from_env = MagicMock()
+    monkeypatch.setattr(api_trigger.KaianoApiClient, "from_env", from_env)
+    assert api_trigger.check("/v1/signals/api-faults/quiet-sweep") == {}
+    from_env.assert_not_called()
+
+
+def test_a_check_returns_the_apis_answer(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        api_trigger, "current_environment", lambda: api_trigger.Environment.PRODUCTION
+    )
+    client = MagicMock()
+    client.post.return_value = {"data": {"quiet": 1, "closed": 1}, "meta": {}}
+    monkeypatch.setattr(
+        api_trigger.KaianoApiClient, "from_env", MagicMock(return_value=client)
+    )
+    assert api_trigger.check("/v1/signals/api-faults/quiet-sweep") == {
+        "quiet": 1,
+        "closed": 1,
+    }
+    client.post.assert_called_once_with("/v1/signals/api-faults/quiet-sweep", {})
+
+
+def test_an_unknown_check_path_is_refused() -> None:
+    with pytest.raises(ValueError, match="not a check endpoint"):
+        api_trigger.check("/v1/deejay/runs")

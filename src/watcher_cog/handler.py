@@ -129,7 +129,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:  # no
     logger_mod.apply_level()
     job = (event or {}).get("job")
     if job:
-        return {"job": job, "message_id": jobs.run_job(job)}
+        return {"job": job, **jobs.run_job(job)}
     only = (event or {}).get("watcher")
     results = run_once(only=only, deadline=_deadline(context))
     return {

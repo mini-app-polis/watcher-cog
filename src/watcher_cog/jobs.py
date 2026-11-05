@@ -4,13 +4,17 @@ A watcher asks for work because files are in its folder. A job asks
 because it is time: its own EventBridge schedule (declared in
 mini-app-polis/infra) invokes this function with ``{"job": "<name>"}`` and
 the job is asked for once, unconditionally, as an operator's run would be.
-What the job then does, and whether it writes anything, is the receiving
-cog's to decide.
+
+A ``run`` job asks for a cog's run, which the API puts on that cog's queue;
+what the run does, and whether it writes anything, is the receiving cog's to
+decide. A ``check`` job asks the API to do a piece of work itself, and the
+API answers what it did.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal
 
 from mini_app_polis import logger as logger_mod
 
@@ -26,6 +30,8 @@ class Job:
     name: str
     api_path: str
     parameters: dict[str, object] = field(default_factory=dict)
+    #: ``run`` enqueues a cog's run; ``check`` is done by the API itself.
+    kind: Literal["run", "check"] = "run"
 
 
 #: Every job a schedule may name.
@@ -38,20 +44,34 @@ JOBS: dict[str, Job] = {
         api_path="/v1/deejay/runs",
         parameters={"mode": "library-backfill"},
     ),
+    # The API's quiet sweep of its own faults: a 502, 503 or 504 Issue whose
+    # route has gone SIGNAL_FAULT_QUIET_HOURS (the API's setting) without
+    # the fault is commented and closed. A 500's Issue is never closed here.
+    "api-fault-quiet-sweep": Job(
+        name="api-fault-quiet-sweep",
+        api_path="/v1/signals/api-faults/quiet-sweep",
+        kind="check",
+    ),
 }
 
 
-def run_job(name: str) -> str:
-    """Ask for one job and return the queue message id.
+def run_job(name: str) -> dict[str, object]:
+    """Ask for one job and return what it came to, for the invocation log.
 
-    An unknown name raises ``ValueError``, so a schedule that drifts from
-    this table fails loudly instead of asking for nothing. A failed ask
-    raises, so the invocation is an error the function's alarm counts.
+    A run job returns its queue message id (``message_id``); a check job
+    returns the API's answer (``result``). An unknown name raises
+    ``ValueError``, so a schedule that drifts from this table fails loudly
+    instead of asking for nothing. A failed ask raises, so the invocation is
+    an error the function's alarm counts.
     """
     job = JOBS.get(name)
     if job is None:
         known = ", ".join(sorted(JOBS))
         raise ValueError(f"no job named {name!r} (known: {known})")
+    if job.kind == "check":
+        result = api_trigger.check(job.api_path, parameters=dict(job.parameters))
+        log.info("[%s] checked: %s", name, result or "-")
+        return {"result": result}
     fired = api_trigger.fire(job.api_path, parameters=dict(job.parameters))
     log.info(
         "[%s] asked: message %s%s",
@@ -59,4 +79,4 @@ def run_job(name: str) -> str:
         fired.message_id or "-",
         " (deduplicated)" if fired.deduplicated else "",
     )
-    return fired.message_id
+    return {"message_id": fired.message_id}
