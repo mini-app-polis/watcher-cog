@@ -1,6 +1,7 @@
 """API trigger client.
 
-Asks api-kaianolevine-com to start a cog's work. This is watcher's only
+Asks api-kaianolevine-com to start a cog's work (:func:`fire`), or to run a
+check of its own on a schedule (:func:`check`). This is watcher's only
 trigger: the API is the fleet's only producer. It claims each file it is
 told about, enqueues onto the cog's queue when a claim is new, and answers
 with the queue message id — the new job's, or, when every file is already
@@ -122,3 +123,39 @@ def fire(path: str, parameters: dict[str, object] | None = None) -> Fired:
     else:
         log.info("api trigger fired path=%s message_id=%s", path, message_id)
     return Fired(message_id=message_id, deduplicated=deduplicated)
+
+
+#: The check endpoints a scheduled job can ask. A check is work the API does
+#: before it answers, so it answers what it did rather than a message id.
+CHECK_ENDPOINTS = frozenset(
+    {
+        # Closes the API's 502-504 fault Issues that have gone quiet.
+        "/v1/signals/api-faults/quiet-sweep",
+    }
+)
+
+
+def check(path: str, parameters: dict[str, object] | None = None) -> dict[str, Any]:
+    """POST ``parameters`` to ``path``, one of the check endpoints.
+
+    Returns the API's answer (its envelope's ``data``), or an empty dict when
+    not in production, where nothing is called. Raises ``ValueError`` for a
+    path that is not a check endpoint, and :class:`KaianoApiError` when the
+    API refuses the request or cannot be reached.
+    """
+    if path not in CHECK_ENDPOINTS:
+        raise ValueError(f"{path} is not a check endpoint")
+    body = dict(parameters or {})
+
+    if current_environment() is not Environment.PRODUCTION:
+        log.info("api check SUPPRESSED (not production) path=%s", path)
+        return {}
+
+    client = KaianoApiClient.from_env(machine_name=MACHINE_NAME)
+    client.timeout = API_TIMEOUT_SECONDS
+    client.max_retries = API_ATTEMPTS
+    answer = client.post(path, body)
+    data = answer.get("data") if isinstance(answer, dict) else None
+    result = data if isinstance(data, dict) else {}
+    log.info("api check done path=%s result=%s", path, result)
+    return result
