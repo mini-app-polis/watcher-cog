@@ -1,3 +1,19 @@
+# [1.24.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.23.2...v1.24.0) (2026-11-05)
+
+
+### Bug Fixes
+
+* **deps:** bump miniapppolis-common-utils to 7.15.0 ([50c560e](https://github.com/mini-app-polis/watcher-cog/commit/50c560e2871f64bcd4f26eefc007663ca79cd1a6))
+* **deps:** bump miniapppolis-common-utils to 7.16.0 ([bb5310f](https://github.com/mini-app-polis/watcher-cog/commit/bb5310f27ad9a839e834f7dccb3bda4894a2ab8d))
+* **deps:** bump miniapppolis-common-utils to 7.17.0 ([5000b0c](https://github.com/mini-app-polis/watcher-cog/commit/5000b0c9b5294ebd78643d21489cda3ce92675f6))
+* **deps:** bump miniapppolis-common-utils to 7.18.0 ([68ead1c](https://github.com/mini-app-polis/watcher-cog/commit/68ead1cd32b235561bdb5685dc6ec2f0e6509db7))
+* **deps:** bump miniapppolis-common-utils to 7.18.1 ([8954c01](https://github.com/mini-app-polis/watcher-cog/commit/8954c01c83970f493c004f4f056765df46b0db85))
+
+
+### Features
+
+* **facts:** publish the test-function count ([647a10c](https://github.com/mini-app-polis/watcher-cog/commit/647a10cac5d38d5e1a2cb6134d87afe0a6cf3da9))
+
 ## [1.23.2](https://github.com/mini-app-polis/watcher-cog/compare/v1.23.1...v1.23.2) (2026-11-04)
 
 
