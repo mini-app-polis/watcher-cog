@@ -1,3 +1,10 @@
+# [1.26.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.25.4...v1.26.0) (2026-11-07)
+
+
+### Features
+
+* **jobs:** a library-reconcile job asks deejay-cog for a reconcile run ([f987ae4](https://github.com/mini-app-polis/watcher-cog/commit/f987ae49d713f2a28cf11f16fd3d5a5d64375790))
+
 ## [1.25.4](https://github.com/mini-app-polis/watcher-cog/compare/v1.25.3...v1.25.4) (2026-11-07)
 
 
