@@ -44,6 +44,15 @@ JOBS: dict[str, Job] = {
         api_path="/v1/deejay/runs",
         parameters={"mode": "library-backfill"},
     ),
+    # deejay-cog's library reconcile, on its own schedule rather than as a
+    # step of the backfill's run, so it has a whole run's time to write in.
+    # Whether it reads or writes is deejay-cog's setting
+    # (LIBRARY_RECONCILE_MODE, off unless set).
+    "library-reconcile": Job(
+        name="library-reconcile",
+        api_path="/v1/deejay/runs",
+        parameters={"mode": "library-reconcile"},
+    ),
     # The API's quiet sweep of its own faults: a 502, 503 or 504 Issue whose
     # route has gone SIGNAL_FAULT_QUIET_HOURS (the API's setting) without
     # the fault is commented and closed. A 500's Issue is never closed here.
