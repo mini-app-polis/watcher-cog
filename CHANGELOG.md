@@ -1,3 +1,15 @@
+# [1.27.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.26.1...v1.27.0) (2026-11-08)
+
+
+### Bug Fixes
+
+* **deps:** bump miniapppolis-common-utils to 8.10.1 ([901fba7](https://github.com/mini-app-polis/watcher-cog/commit/901fba7dbe93d9b30a62a55191912e060a1bfbdb))
+
+
+### Features
+
+* run on Python 3.14 ([f9f557c](https://github.com/mini-app-polis/watcher-cog/commit/f9f557c687978119c39e773446e4db5c45af32b6))
+
 ## [1.26.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.26.0...v1.26.1) (2026-11-07)
 
 
