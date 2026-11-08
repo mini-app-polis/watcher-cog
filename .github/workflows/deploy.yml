@@ -31,7 +31,7 @@ jobs:
       handler: watcher_cog.handler.lambda_handler
       architecture: arm64
       trigger: schedule
-      python-version: "3.11"
+      python-version: "3.14"
       role-arn: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
       region: ${{ vars.AWS_REGION }}
       function-name: ${{ vars.AWS_FUNCTION_NAME }}

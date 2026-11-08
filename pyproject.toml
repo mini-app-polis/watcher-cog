@@ -3,7 +3,7 @@ name = "watcher-cog"
 dynamic = ["version"]
 description = "Google Drive watcher worker that asks the API to run the cog that owns a folder."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dependencies = [
     "httpx",
     "miniapppolis-common-utils[google]>=8.0.0,<9",
@@ -38,7 +38,7 @@ asyncio_mode = "auto"
 testpaths = ["tests/unit"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.14"
 strict = false
 ignore_missing_imports = true
 
