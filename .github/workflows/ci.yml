@@ -76,7 +76,7 @@ jobs:
       # startup guard checks imports only, instead of probing with an SQS
       # record — which would run a real tick.
       trigger: schedule
-      python-version: "3.11"
+      python-version: "3.14"
       role-arn: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
       region: ${{ vars.AWS_REGION }}
       function-name: ${{ vars.AWS_FUNCTION_NAME }}
