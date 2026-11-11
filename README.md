@@ -14,7 +14,7 @@ A scheduled function that watches Google Drive folders and asks api-kaianolevine
 - Reports to the runs channel when work was queued, and stays silent when every file was already claimed
 - Pings Healthchecks.io after every tick in which its folder was checked (one check for all four)
 - Gives each ask one 10s attempt, and starts no new ask once one more would not fit inside the function's timeout — the next tick is the retry
-- Runs scheduled jobs: an invocation with `{"job": "<name>"}` asks the API for that job's run once and checks no folder. Each job has its own schedule in `mini-app-polis/infra`; `library-backfill` asks deejay-cog for its nightly library job (scan, trash, identify, backfill, sync, duplicates); `library-reconcile` asks deejay-cog to reconcile linked library files with the catalog, settling the owner's approvals; `api-fault-quiet-sweep` asks the API to close its 502-504 fault Issues whose route has gone quiet (`POST /v1/signals/api-faults/quiet-sweep`)
+- Runs scheduled jobs: an invocation with `{"job": "<name>"}` asks the API for that job's run once and checks no folder. Each job has its own schedule in `mini-app-polis/infra`; `library-backfill` asks deejay-cog for its library job (scan, trash, identify, backfill, sync, duplicates); `library-reconcile` asks deejay-cog to reconcile linked library files with the catalog, settling the owner's approvals; `api-fault-quiet-sweep` asks the API to close its 502-504 fault Issues whose route has gone quiet (`POST /v1/signals/api-faults/quiet-sweep`)
 
 **What it does not do:**
 - Remember anything. There is no seen-set and no baseline: every tick asks for everything present, and the API's dispatch claims make the repeats no-ops
