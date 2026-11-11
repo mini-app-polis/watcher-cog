@@ -35,5 +35,6 @@ mini-app-polis/infra. An unknown job name fails the invocation.
 
 What the job's run then does, and whether it writes anything, is the
 receiving cog's to decide: `library-backfill` asks deejay-cog for a
-library-backfill run, and `library-reconcile` for a library-reconcile
-run; each does nothing until deejay-cog's own mode setting turns it on.
+library-backfill run (its nightly library job), and `library-reconcile`
+for a library-reconcile run; each step does nothing unless its own mode,
+a feature flag deejay-cog reads, turns it on.
