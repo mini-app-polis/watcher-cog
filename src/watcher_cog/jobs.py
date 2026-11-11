@@ -36,9 +36,9 @@ class Job:
 
 #: Every job a schedule may name.
 JOBS: dict[str, Job] = {
-    # deejay-cog's library backfill: retags the next chunk of the music
-    # library each night. Whether it writes anything is deejay-cog's own
-    # setting (LIBRARY_BACKFILL_MODE, off unless set).
+    # deejay-cog's library job (scan, trash, identify, backfill, sync,
+    # duplicates). Whether each step reads or writes is deejay-cog's own
+    # (a feature flag per step, off unless set).
     "library-backfill": Job(
         name="library-backfill",
         api_path="/v1/deejay/runs",
@@ -46,8 +46,8 @@ JOBS: dict[str, Job] = {
     ),
     # deejay-cog's library reconcile, on its own schedule rather than as a
     # step of the backfill's run, so it has a whole run's time to write in.
-    # Whether it reads or writes is deejay-cog's setting
-    # (LIBRARY_RECONCILE_MODE, off unless set).
+    # Whether it reads or writes is deejay-cog's own (a feature flag, off
+    # unless set).
     "library-reconcile": Job(
         name="library-reconcile",
         api_path="/v1/deejay/runs",
