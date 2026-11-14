@@ -1,3 +1,10 @@
+# [1.28.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.27.7...v1.28.0) (2026-11-14)
+
+
+### Features
+
+* **jobs:** add new-music-sweep, an hourly new-music run naming no file so claimed input files are still taken in ([b4dd8d6](https://github.com/mini-app-polis/watcher-cog/commit/b4dd8d6db076130222b46b13e6355e096ff22bb0))
+
 ## [1.27.7](https://github.com/mini-app-polis/watcher-cog/compare/v1.27.6...v1.27.7) (2026-11-13)
 
 
