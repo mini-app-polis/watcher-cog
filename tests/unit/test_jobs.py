@@ -32,6 +32,13 @@ def test_the_library_reconcile_job_asks_deejay_for_a_reconcile_run(
     )
 
 
+def test_the_new_music_sweep_asks_deejay_for_an_intake_run_naming_no_file(
+    fire: MagicMock,
+) -> None:
+    assert jobs.run_job("new-music-sweep") == {"message_id": "m-1"}
+    fire.assert_called_once_with("/v1/deejay/runs", parameters={"mode": "new-music"})
+
+
 def test_a_job_sends_no_drive_files(fire: MagicMock) -> None:
     jobs.run_job("library-backfill")
     assert "drive_files" not in fire.call_args.kwargs["parameters"]

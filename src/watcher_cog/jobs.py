@@ -53,6 +53,18 @@ JOBS: dict[str, Job] = {
         api_path="/v1/deejay/runs",
         parameters={"mode": "library-reconcile"},
     ),
+    # deejay-cog's new-music intake, asked for whatever is in the input
+    # folder. The music-uploads watcher claims each file once per version,
+    # so a file it already asked for (one left past a run's cap, or moved
+    # back into the folder) is never asked for again; this ask names no
+    # file, so no claim stands in its way. Whether the run reads or writes
+    # is deejay-cog's own (a feature flag), and a run that finds the folder
+    # empty sends nothing.
+    "new-music-sweep": Job(
+        name="new-music-sweep",
+        api_path="/v1/deejay/runs",
+        parameters={"mode": "new-music"},
+    ),
     # The API's quiet sweep of its own faults: a 502, 503 or 504 Issue whose
     # route has gone SIGNAL_FAULT_QUIET_HOURS (the API's setting) without
     # the fault is commented and closed. A 500's Issue is never closed here.
