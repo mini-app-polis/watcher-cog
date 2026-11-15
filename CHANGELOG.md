@@ -1,3 +1,11 @@
+## [1.28.1](https://github.com/mini-app-polis/watcher-cog/compare/v1.28.0...v1.28.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* **deps:** bump miniapppolis-common-utils to 9.11.0 ([af3d75a](https://github.com/mini-app-polis/watcher-cog/commit/af3d75afb5c9441be1e18647f4c29baf077b35c0))
+* **drive:** bound Drive listing so a hung request cannot spend the ask budget ([79fc811](https://github.com/mini-app-polis/watcher-cog/commit/79fc8117f10d3c5622d9379de044a915ad8b93ac))
+
 # [1.28.0](https://github.com/mini-app-polis/watcher-cog/compare/v1.27.7...v1.28.0) (2026-11-14)
 
 
