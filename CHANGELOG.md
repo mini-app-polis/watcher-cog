@@ -1,3 +1,10 @@
+## [1.28.3](https://github.com/mini-app-polis/watcher-cog/compare/v1.28.2...v1.28.3) (2026-11-16)
+
+
+### Bug Fixes
+
+* **deps:** bump the minor-and-patch group with 2 updates ([ea84dec](https://github.com/mini-app-polis/watcher-cog/commit/ea84dec971260de3b9cd3fb8fde6efeb79cb3235))
+
 ## [1.28.2](https://github.com/mini-app-polis/watcher-cog/compare/v1.28.1...v1.28.2) (2026-11-15)
 
 
