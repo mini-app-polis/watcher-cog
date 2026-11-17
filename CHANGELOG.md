@@ -1,3 +1,11 @@
+## [1.28.4](https://github.com/mini-app-polis/watcher-cog/compare/v1.28.3...v1.28.4) (2026-11-17)
+
+
+### Bug Fixes
+
+* **deps:** bump miniapppolis-common-utils to 9.13.2 ([2136249](https://github.com/mini-app-polis/watcher-cog/commit/2136249abc0d63205366d90eaa14f988203b3f29))
+* **deps:** bump miniapppolis-common-utils to 9.14.0 ([864c629](https://github.com/mini-app-polis/watcher-cog/commit/864c6292cf5bfd5c078f83eee86cc8576fae9afd))
+
 ## [1.28.3](https://github.com/mini-app-polis/watcher-cog/compare/v1.28.2...v1.28.3) (2026-11-16)
 
 
